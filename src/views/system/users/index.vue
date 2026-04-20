@@ -156,7 +156,7 @@ const handleDelete = (row) => {
         console.error('删除失败', error);
       }
     })
-    .catch(() => {});
+    .catch(() => { });
 };
 
 const submitForm = () => {
