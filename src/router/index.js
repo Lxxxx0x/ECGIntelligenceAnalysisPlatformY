@@ -45,6 +45,11 @@ const router = createRouter({
           component: () => import("@/views/realtime/realtime.vue"),
         },
         {
+          path: "focus-monitor",
+          name: "focus-monitor",
+          component: () => import("@/views/focus-monitor/focus-monitor.vue"),
+        },
+        {
           path: "device",
           name: "device",
           component: () => import("@/views/device/device.vue"),
@@ -53,6 +58,11 @@ const router = createRouter({
           path: "quality",
           name: "quality",
           component: () => import("@/views/quality/quality.vue"),
+        },
+        {
+          path: "research",
+          name: "research",
+          component: () => import("@/views/research/research.vue"),
         },
         {
           path: "system/users",

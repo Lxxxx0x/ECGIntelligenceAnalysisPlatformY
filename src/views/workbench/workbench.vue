@@ -318,7 +318,7 @@ onUnmounted(() => {
                 </el-table-column>
                 <el-table-column prop="patientInfo" label="患者信息" width="200" />
                 <el-table-column prop="ward" label="病区" width="200" />
-                <el-table-column label="预警类型" min-width="160">
+                <el-table-column label="临床指标类型" min-width="160">
                     <template #default="{ row }">
                         <span style="color: #409eff; cursor: pointer;">{{ row.type }}</span>
                     </template>
@@ -336,8 +336,9 @@ onUnmounted(() => {
                                 row.status }}</el-tag>
                     </template>
                 </el-table-column>
-                <el-table-column label="操作" width="140" fixed="right">
+                <el-table-column label="操作" width="160" fixed="right">
                     <template #default>
+                        <el-button link type="primary" size="small">纳入</el-button>
                         <el-button link type="primary" size="small">查看详情 <span
                                 style="margin-left: 4px; font-size: 14px;">&rarr;</span></el-button>
                     </template>

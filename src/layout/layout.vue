@@ -10,24 +10,25 @@ import {
     Bell,
     Search,
     Tools,
-    Histogram,
-    Setting
+    Setting,
+    Collection
 } from "@element-plus/icons-vue";
 
 const route = useRoute();
 const activeMenu = ref(route.path || "/workbench");
 
 const routePaths = {
-    "/workbench": ["工作台", "工作台"],
+    "/workbench": ["数据分析", "数据分析"],
     "/ecg-data": ["心电数据管理"],
     "/ai-diagnosis": ["AI诊断中心"],
     "/report": ["诊断报告管理"],
-    "/patient": ["工作台", "患者管理"],
+    "/patient": ["数据分析", "患者管理"],
     "/warning": ["预警监控"],
-    "/realtime": ["实时监护"],
+    "/realtime": ["监护管理", "实时监护"],
+    "/focus-monitor": ["监护管理", "重点监护"],
     "/device": ["设备管理", "设备管理"],
     "/quality": ["设备管理", "质控管理"],
-    "/analysis": ["数据分析"],
+    "/research": ["科研数据管理"],
     "/system/departments": ["系统管理", "科室管理"],
     "/system/users": ["系统管理", "用户管理"],
     "/system/roles": ["系统管理", "角色与权限管理"]
@@ -70,9 +71,9 @@ onMounted(() => {
                         <el-icon>
                             <House />
                         </el-icon>
-                        <span>工作台</span>
+                        <span>数据分析</span>
                     </template>
-                    <el-menu-item index="/workbench">工作台</el-menu-item>
+                    <el-menu-item index="/workbench">数据分析</el-menu-item>
                     <el-menu-item index="/patient">患者管理</el-menu-item>
                 </el-sub-menu>
                 <el-menu-item index="/ecg-data">
@@ -99,12 +100,16 @@ onMounted(() => {
                     </el-icon>
                     <template #title>预警监控</template>
                 </el-menu-item>
-                <el-menu-item index="/realtime">
-                    <el-icon>
-                        <Search />
-                    </el-icon>
-                    <template #title>实时监护</template>
-                </el-menu-item>
+                <el-sub-menu index="monitor-group">
+                    <template #title>
+                        <el-icon>
+                            <Search />
+                        </el-icon>
+                        <span>监护管理</span>
+                    </template>
+                    <el-menu-item index="/realtime">实时监护</el-menu-item>
+                    <el-menu-item index="/focus-monitor">重点监护</el-menu-item>
+                </el-sub-menu>
                 <el-sub-menu index="device-group">
                     <template #title>
                         <el-icon>
@@ -113,13 +118,15 @@ onMounted(() => {
                         <span>设备管理</span>
                     </template>
                     <el-menu-item index="/device">设备管理</el-menu-item>
-                    <el-menu-item index="/quality">质控管理</el-menu-item>
+                    <el-menu-item index="/quality">
+                        <template #title>质控管理</template>
+                    </el-menu-item>
                 </el-sub-menu>
-                <el-menu-item index="/analysis">
+                <el-menu-item index="/research">
                     <el-icon>
-                        <Histogram />
+                        <Collection />
                     </el-icon>
-                    <template #title>数据分析</template>
+                    <template #title>科研数据管理</template>
                 </el-menu-item>
                 <el-sub-menu index="/system">
                     <template #title>

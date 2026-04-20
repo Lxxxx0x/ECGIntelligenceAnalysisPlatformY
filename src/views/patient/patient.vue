@@ -1,6 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Search } from '@element-plus/icons-vue'
+import { apiPatientsList, apiPatientsDetail } from '@/apis/patients'
+import { apigetSearchDicts, apiSearchDicts } from '@/apis/search'
 
 const searchQuery = ref('')
 const selectedWard = ref('')
@@ -8,217 +10,129 @@ const selectedLevel = ref('')
 const selectedStatus = ref('')
 
 // Dropdown options
-const wardOptions = [
-    { label: '心血管内科一区', value: '1' },
-    { label: '心血管内科二区', value: '2' },
-    { label: '神经内科一区', value: '3' },
-    { label: '老年病科', value: '4' },
-]
+const wardOptions = ref([])
+const levelOptions = ref([])
+const statusOptions = ref([])
 
-const levelOptions = [
-    { label: '高危', value: 'high' },
-    { label: '中高危', value: 'mid-high' },
-    { label: '中危', value: 'mid' },
-]
-
-const statusOptions = [
-    { label: '住院中', value: 'inpatient' },
-    { label: '居家随访', value: 'home' }
-]
-
-const stats = {
-    total: 12,
-    inpatient: 10,
-    home: 2,
-    highRisk: 5
+const getSearchOptions = async () => {
+    try {
+        const res = await apigetSearchDicts()
+        if (res.code === 0 && res.data) {
+            wardOptions.value = res.data.wardOptions || []
+            levelOptions.value = res.data.riskLevelOptions || []
+            statusOptions.value = res.data.patientStatusOptions || []
+        }
+    } catch (error) {
+        console.error('Failed to fetch search dicts:', error)
+    }
 }
 
-// Table Data (Mocked based on image)
-const tableData = ref([
-    {
-        id: '1',
-        name: '张三',
-        gender: '男',
-        age: '45岁',
-        hospitalNo: '2186225',
-        ward: '心血管内科一区',
-        bed: '01',
-        diagnosis: '冠心病/不稳定型心...',
-        riskLevel: '中高危',
-        status: '住院中',
-        ecgCount: 5,
-        lastEcgTime: '2026-04-11 08:30:00'
-    },
-    {
-        id: '2',
-        name: '李四',
-        gender: '女',
-        age: '62岁',
-        hospitalNo: '2191885',
-        ward: '心血管内科二区',
-        bed: '02',
-        diagnosis: '心房颤动',
-        riskLevel: '高危',
-        status: '住院中',
-        ecgCount: 8,
-        lastEcgTime: '2026-04-11 09:15:00'
-    },
-    {
-        id: '3',
-        name: '王五',
-        gender: '男',
-        age: '58岁',
-        hospitalNo: '2187225',
-        ward: '神经内科一区',
-        bed: '15',
-        diagnosis: '脑梗塞/TIA',
-        riskLevel: '高危',
-        status: '住院中',
-        ecgCount: 12,
-        lastEcgTime: '2026-04-11 10:00:00'
-    },
-    {
-        id: '4',
-        name: '赵六',
-        gender: '女',
-        age: '72岁',
-        hospitalNo: '2192221',
-        ward: '老年病科',
-        bed: '28',
-        diagnosis: '高血压、心动过缓',
-        riskLevel: '中高危',
-        status: '住院中',
-        ecgCount: 15,
-        lastEcgTime: '2026-04-11 11:30:00'
-    },
-    {
-        id: '5',
-        name: '孙七',
-        gender: '男',
-        age: '55岁',
-        hospitalNo: '2180867',
-        ward: '心血管内科一区',
-        bed: '05',
-        diagnosis: '胸闷待查',
-        riskLevel: '中危',
-        status: '住院中',
-        ecgCount: 1,
-        lastEcgTime: '2026-04-11 14:00:00'
-    },
-    {
-        id: '6',
-        name: '周八',
-        gender: '女',
-        age: '48岁',
-        hospitalNo: '2143093',
-        ward: '内分泌科',
-        bed: '09',
-        diagnosis: '糖尿病',
-        riskLevel: '中高危',
-        status: '住院中',
-        ecgCount: 3,
-        lastEcgTime: '2026-04-11 15:20:00'
-    },
-    {
-        id: '7',
-        name: '吴九',
-        gender: '男',
-        age: '65岁',
-        hospitalNo: '2178888',
-        ward: '',
-        bed: '',
-        diagnosis: '冠心病术后',
-        riskLevel: '中危',
-        status: '居家随访',
-        ecgCount: 25,
-        lastEcgTime: '2026-04-10 16:00:00'
-    },
-    {
-        id: '8',
-        name: '郑十',
-        gender: '女',
-        age: '52岁',
-        hospitalNo: '2179999',
-        ward: '',
-        bed: '',
-        diagnosis: '心律失常',
-        riskLevel: '中高危',
-        status: '居家随访',
-        ecgCount: 18,
-        lastEcgTime: '2026-04-11 09:00:00'
-    },
-    {
-        id: '9',
-        name: '刘十一',
-        gender: '女',
-        age: '32岁',
-        hospitalNo: '2185555',
-        ward: '产科',
-        bed: '12',
-        diagnosis: '妊娠期心律失常',
-        riskLevel: '中高危',
-        status: '住院中',
-        ecgCount: 6,
-        lastEcgTime: '2026-04-11 16:00:00'
-    },
-    {
-        id: '10',
-        name: '陈十二',
-        gender: '男',
-        age: '78岁',
-        hospitalNo: '2196666',
-        ward: '骨科',
-        bed: '08',
-        diagnosis: '股骨颈骨折',
-        riskLevel: '高危',
-        status: '住院中',
-        ecgCount: 4,
-        lastEcgTime: '2026-04-11 14:30:00'
-    },
-    {
-        id: '11',
-        name: '黄十三',
-        gender: '男',
-        age: '42岁',
-        hospitalNo: '2187777',
-        ward: '急诊科',
-        bed: '03',
-        diagnosis: '晕厥待查',
-        riskLevel: '高危',
-        status: '住院中',
-        ecgCount: 2,
-        lastEcgTime: '2026-04-11 17:00:00'
-    },
-    {
-        id: '12',
-        name: '林十四',
-        gender: '女',
-        age: '55岁',
-        hospitalNo: '2198888',
-        ward: '肾内科',
-        bed: '16',
-        diagnosis: '肾功能不全',
-        riskLevel: '高危',
-        status: '住院中',
-        ecgCount: 20,
-        lastEcgTime: '2026-04-11 10:30:00'
+const stats = ref({
+    total: 0,
+    inpatient: 0,
+    home: 0,
+    highRisk: 0
+})
+
+const getPatientsStats = async () => {
+    try {
+        const res = await apiPatientsList()
+        if (res.code === 0 && res.data) {
+            stats.value = {
+                total: res.data.totalPatient || 0,
+                inpatient: res.data.inHospital || 0,
+                home: res.data.homeFollow || 0,
+                highRisk: res.data.highRisk || 0
+            }
+        }
+    } catch (error) {
+        console.error('Failed to fetch patient stats:', error)
     }
-])
+}
+
+onMounted(() => {
+    getSearchOptions()
+    getPatientsStats()
+    getPatientsList()
+})
+
+// Table Data (Mocked initially, now fetched from API)
+const tableData = ref([])
+const loading = ref(false)
+const pageNum = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+
+const getPatientsList = async () => {
+    loading.value = true
+    try {
+        const res = await apiSearchDicts({
+            keyword: searchQuery.value,
+            ward: selectedWard.value,
+            riskLevel: selectedLevel.value,
+            patientStatus: selectedStatus.value,
+            pageNum: pageNum.value,
+            pageSize: pageSize.value
+        })
+        if (res.code === 0 && res.data) {
+            tableData.value = res.data.records || res.data.list || []
+            total.value = res.data.total || 0
+        }
+    } catch (error) {
+        console.error('Failed to fetch patient list:', error)
+    } finally {
+        loading.value = false
+    }
+}
 
 const handleQuery = () => {
-    console.log('Query patients...')
+    pageNum.value = 1
+    getPatientsList()
+}
+
+const handleSizeChange = (val) => {
+    pageSize.value = val
+    pageNum.value = 1
+    getPatientsList()
+}
+
+const handleCurrentChange = (val) => {
+    pageNum.value = val
+    getPatientsList()
+}
+
+// Detail Dialog
+const dialogVisible = ref(false)
+const detailLoading = ref(false)
+const patientDetail = ref({})
+
+const handleDetail = async (row) => {
+    dialogVisible.value = true
+    detailLoading.value = true
+    try {
+        const res = await apiPatientsDetail(row.patientId)
+        if (res.code === 0 && res.data) {
+            patientDetail.value = res.data.basicInfo || res.data
+        }
+    } catch (error) {
+        console.error('Failed to fetch patient detail:', error)
+    } finally {
+        detailLoading.value = false
+    }
 }
 
 const getRiskLevelClass = (level) => {
-    if (level === '高危') return 'risk-high'
-    if (level === '中高危') return 'risk-mid-high'
-    if (level === '中危') return 'risk-mid'
+    if (!level) return ''
+    if (level.includes('高危') || level === '4') return 'risk-high'
+    if (level.includes('中高危') || level === '3') return 'risk-mid-high'
+    if (level.includes('中危') || level === '2') return 'risk-mid'
     return ''
 }
 
 const getStatusClass = (status) => {
-    if (status === '住院中') return 'status-inpatient'
-    if (status === '居家随访') return 'status-home'
+    if (!status) return ''
+    if (status.includes('住院')) return 'status-inpatient'
+    if (status.includes('居家')) return 'status-home'
     return ''
 }
 </script>
@@ -286,39 +200,93 @@ const getStatusClass = (status) => {
             </div>
 
             <div class="table-content">
-                <el-table :data="tableData" style="width: 100%" height="100%">
+                <el-table v-loading="loading" :data="tableData" style="width: 100%" height="100%">
                     <el-table-column type="index" label="序号" width="60" align="center" />
-                    <el-table-column prop="name" label="患者姓名" width="100" />
-                    <el-table-column prop="gender" label="性别" width="60" />
-                    <el-table-column prop="age" label="年龄" width="70" />
-                    <el-table-column prop="hospitalNo" label="住院号" width="100" />
-                    <el-table-column prop="ward" label="病区" min-width="130" show-overflow-tooltip />
-                    <el-table-column prop="bed" label="床号" width="70" />
-                    <el-table-column prop="diagnosis" label="诊断" min-width="160" show-overflow-tooltip />
-                    <el-table-column prop="riskLevel" label="风险等级" width="100" align="center">
+                    <el-table-column prop="patientName" label="患者姓名" width="100" />
+                    <el-table-column prop="genderText" label="性别" width="60" />
+                    <el-table-column prop="age" label="年龄" width="70">
                         <template #default="scope">
-                            <span class="custom-tag" :class="getRiskLevelClass(scope.row.riskLevel)">
-                                {{ scope.row.riskLevel }}
+                            {{ scope.row.age }}岁
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="inpatientNo" label="住院号" width="120" />
+                    <el-table-column prop="wardName" label="病区" min-width="130" show-overflow-tooltip />
+                    <el-table-column prop="bedNo" label="床号" width="70" />
+                    <el-table-column prop="primaryDiagnosis" label="诊断" min-width="160" show-overflow-tooltip />
+                    <el-table-column prop="riskLevelText" label="风险等级" width="100" align="center">
+                        <template #default="scope">
+                            <span class="custom-tag" :class="getRiskLevelClass(scope.row.riskLevelText)">
+                                {{ scope.row.riskLevelText }}
                             </span>
                         </template>
                     </el-table-column>
-                    <el-table-column prop="status" label="状态" width="100" align="center">
+                    <el-table-column prop="patientStatusText" label="状态" width="100" align="center">
                         <template #default="scope">
-                            <span class="custom-tag" :class="getStatusClass(scope.row.status)">
-                                {{ scope.row.status }}
+                            <span class="custom-tag" :class="getStatusClass(scope.row.patientStatusText)">
+                                {{ scope.row.patientStatusText }}
                             </span>
                         </template>
                     </el-table-column>
                     <el-table-column prop="ecgCount" label="心电次数" width="90" align="center" />
-                    <el-table-column prop="lastEcgTime" label="最近心电时间" width="180" align="center" />
+                    <el-table-column prop="latestEcgTime" label="最近心电时间" width="180" align="center">
+                        <template #default="scope">
+                            {{ scope.row.latestEcgTime ? scope.row.latestEcgTime.replace('T', ' ') : '' }}
+                        </template>
+                    </el-table-column>
                     <el-table-column label="操作" width="80" align="center" fixed="right">
-                        <template #default>
-                            <!-- Small blue icon button (matches image's cut-off operation col) -->
-                            <el-button link type="primary" size="small">详情</el-button>
+                        <template #default="scope">
+                            <el-button link type="primary" size="small" @click="handleDetail(scope.row)">详情</el-button>
                         </template>
                     </el-table-column>
                 </el-table>
             </div>
+
+            <div class="pagination-wrapper">
+                <el-pagination v-model:current-page="pageNum" v-model:page-size="pageSize"
+                    :page-sizes="[10, 20, 50, 100]" background layout="total, sizes, prev, pager, next, jumper"
+                    :total="total" @size-change="handleSizeChange" @current-change="handleCurrentChange" />
+            </div>
+
+            <!-- Detail Dialog -->
+            <el-dialog v-model="dialogVisible" title="患者详情" width="700px" destroy-on-close>
+                <div v-loading="detailLoading" class="detail-content">
+                    <el-descriptions :column="2" border>
+                        <el-descriptions-item label="患者姓名">{{ patientDetail.patientName || '-' }}</el-descriptions-item>
+                        <el-descriptions-item label="性别">{{ patientDetail.genderText || '-' }}</el-descriptions-item>
+                        <el-descriptions-item label="年龄">{{ patientDetail.age ? patientDetail.age + '岁' : '-'
+                            }}</el-descriptions-item>
+                        <el-descriptions-item label="出生日期">{{ patientDetail.birthDate ?
+                            patientDetail.birthDate.substring(0, 10) :
+                            '-' }}</el-descriptions-item>
+                        <el-descriptions-item label="身份证号">{{ patientDetail.idCard || '-' }}</el-descriptions-item>
+                        <el-descriptions-item label="联系电话">{{ patientDetail.phone || '-' }}</el-descriptions-item>
+                        <el-descriptions-item label="住院号">{{ patientDetail.inpatientNo || '-' }}</el-descriptions-item>
+                        <el-descriptions-item label="病区">{{ patientDetail.wardName || '-' }}</el-descriptions-item>
+                        <el-descriptions-item label="床号">{{ patientDetail.bedNo || '-' }}</el-descriptions-item>
+                        <el-descriptions-item label="状态">{{ patientDetail.patientStatusText || '-'
+                            }}</el-descriptions-item>
+                        <el-descriptions-item label="风险等级">{{ patientDetail.riskLevelText || '-'
+                            }}</el-descriptions-item>
+                        <el-descriptions-item label="设备号">{{ patientDetail.deviceId || '-' }}</el-descriptions-item>
+                        <el-descriptions-item label="入院时间">{{ patientDetail.admissionTime ?
+                            patientDetail.admissionTime.replace('T',
+                                ' ') : '-' }}</el-descriptions-item>
+                        <el-descriptions-item label="出院时间">{{ patientDetail.dischargeTime ?
+                            patientDetail.dischargeTime.replace('T',
+                                ' ') : '-' }}</el-descriptions-item>
+                        <el-descriptions-item label="心电次数">{{ patientDetail.ecgCount ?? '-' }}</el-descriptions-item>
+                        <el-descriptions-item label="最近心电时间">{{ patientDetail.latestEcgTime ?
+                            patientDetail.latestEcgTime.replace('T', ' ') : '-' }}</el-descriptions-item>
+                        <el-descriptions-item label="主要诊断" :span="2">{{ patientDetail.primaryDiagnosis || '-'
+                            }}</el-descriptions-item>
+                    </el-descriptions>
+                </div>
+                <template #footer>
+                    <span class="dialog-footer">
+                        <el-button @click="dialogVisible = false">关闭</el-button>
+                    </span>
+                </template>
+            </el-dialog>
         </el-card>
     </div>
 </template>
@@ -427,6 +395,7 @@ const getStatusClass = (status) => {
 .table-content {
     flex: 1;
     overflow: hidden;
+    margin-bottom: 20px;
 
     :deep(.el-table) {
         th.el-table__cell {
@@ -443,6 +412,12 @@ const getStatusClass = (status) => {
     }
 }
 
+.pagination-wrapper {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 10px;
+}
+
 /* Custom Tag Styles */
 .custom-tag {
     display: inline-block;
@@ -451,6 +426,11 @@ const getStatusClass = (status) => {
     font-size: 13px;
     line-height: 20px;
     border: 1px solid transparent;
+}
+
+.detail-content {
+    min-height: 200px;
+    padding: 10px 0;
 }
 
 /* Risk Levels */

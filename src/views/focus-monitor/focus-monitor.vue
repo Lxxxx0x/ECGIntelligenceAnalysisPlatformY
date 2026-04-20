@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { Aim, Timer, TrendCharts, Bell } from '@element-plus/icons-vue'
+import { Aim, Timer, TrendCharts, Bell, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 // Top Stats Data
@@ -104,31 +104,25 @@ onUnmounted(() => {
             <div class="dashboard-panel">
                 <div class="panel-header">
                     <div class="title-with-bar" style="display: flex; align-items: center; gap: 16px;">
-                        <span>实时监护大屏</span>
-                        <el-select v-model="filterLevel" placeholder="全部等级" size="small" style="width: 120px;">
-                            <el-option label="全部等级" value="全部" />
-                            <el-option label="高危预警" value="高危" />
-                            <el-option label="中危预警" value="中危" />
-                            <el-option label="正常监护" value="正常" />
-                        </el-select>
+                        <span>重点监护大屏</span>
                     </div>
                     <div class="live-indicator">
                         <span class="pulsing-dot"></span>
-                        实时更新中
+                        实时监控中
                     </div>
                 </div>
 
                 <div class="patient-grid">
                     <!-- Patient Cards -->
-                    <div v-for="patient in filteredPatients" :key="patient.id" class="patient-card"
+                    <div v-for="patient in patients.filter(p => p.status === 'warning' || Math.random() > 0.5).slice(0, 4)"
+                        :key="patient.id" class="patient-card"
                         :class="patient.status === 'warning' ? 'is-warning' : 'is-normal'">
                         <!-- Card Header -->
                         <div class="p-header">
                             <span class="p-name">{{ patient.name }}</span>
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <el-button size="small" type="primary" link
-                                    @click="handleAddFocus(patient)">加入重点监护</el-button>
-                                <span class="p-tag">{{ patient.status === 'warning' ? '预警' : '正常' }}</span>
+                                <el-button size="small" type="danger" link>解除重点监护</el-button>
+                                <span class="p-tag">{{ patient.status === 'warning' ? '高危' : '正常' }}</span>
                             </div>
                         </div>
                         <!-- Card Meta -->
