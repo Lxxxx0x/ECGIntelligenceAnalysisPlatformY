@@ -190,12 +190,14 @@ const submitForm = () => {
         </el-form-item>
         <el-form-item label="角色">
           <el-select v-model="queryParams.roleId" placeholder="全部角色" clearable style="width: 150px">
-            <el-option v-for="item in dicts.roleOptions" :key="item.value" :label="item.label" :value="item.value === '' ? '' : Number(item.value)" />
+            <el-option v-for="item in dicts.roleOptions" :key="item.value" :label="item.label"
+              :value="item.value === '' ? '' : Number(item.value)" />
           </el-select>
         </el-form-item>
         <el-form-item label="科室">
           <el-select v-model="queryParams.deptId" placeholder="全部科室" clearable style="width: 150px">
-            <el-option v-for="item in dicts.departmentOptions" :key="item.value" :label="item.label" :value="item.value === '' ? '' : Number(item.value)" />
+            <el-option v-for="item in dicts.departmentOptions" :key="item.value" :label="item.label"
+              :value="item.value === '' ? '' : Number(item.value)" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -234,23 +236,17 @@ const submitForm = () => {
         <el-table-column label="操作" width="180" fixed="right" align="center">
           <template #default="{ row }">
             <el-button type="primary" link :icon="Edit" size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button type="danger" link :icon="Delete" size="small" @click="handleDelete(row)" :disabled="row.userName==='admin'">删除</el-button>
+            <el-button type="danger" link :icon="Delete" size="small" @click="handleDelete(row)"
+              :disabled="row.userName === 'admin'">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
     </div>
 
     <div class="pagination-wrapper">
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :total="total"
-        :page-sizes="[10, 20, 50, 100]"
-        background
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
+      <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :total="total"
+        :page-sizes="[10, 20, 50, 100]" background layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handleSizeChange" @current-change="handleCurrentChange" />
     </div>
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px">
@@ -266,12 +262,14 @@ const submitForm = () => {
         </el-form-item>
         <el-form-item label="归属科室" prop="deptId">
           <el-select v-model="form.deptId" placeholder="请选择科室" style="width: 100%;">
-            <el-option v-for="item in dicts.departmentOptions.filter(opt => opt.value !== '')" :key="item.value" :label="item.label" :value="Number(item.value)" />
+            <el-option v-for="item in dicts.departmentOptions.filter(opt => opt.value !== '')" :key="item.value"
+              :label="item.label" :value="Number(item.value)" />
           </el-select>
         </el-form-item>
         <el-form-item label="角色分配" prop="roleId">
           <el-select v-model="form.roleId" placeholder="请选择角色" style="width: 100%;">
-            <el-option v-for="item in dicts.roleOptions.filter(opt => opt.value !== '')" :key="item.value" :label="item.label" :value="Number(item.value)" />
+            <el-option v-for="item in dicts.roleOptions.filter(opt => opt.value !== '')" :key="item.value"
+              :label="item.label" :value="Number(item.value)" />
           </el-select>
         </el-form-item>
         <el-form-item label="手机号码" prop="phone">
@@ -279,7 +277,8 @@ const submitForm = () => {
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="form.status">
-            <el-radio v-for="item in dicts.statusOptions.filter(opt => opt.value !== '')" :key="item.value" :label="item.value">{{ item.label }}</el-radio>
+            <el-radio v-for="item in dicts.statusOptions.filter(opt => opt.value !== '')" :key="item.value"
+              :label="item.value">{{ item.label }}</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
@@ -309,8 +308,10 @@ const submitForm = () => {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    
-    .el-form-item { margin-bottom: 0; }
+
+    .el-form-item {
+      margin-bottom: 0;
+    }
   }
 
   .table-wrapper {

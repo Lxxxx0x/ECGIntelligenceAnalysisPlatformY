@@ -1,69 +1,148 @@
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { Search, Refresh, Plus, Edit, Delete } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { apiRolePage, apiRoleAdd, apiRoleEdit, apiRoleDelete } from '@/apis/system/roles';
 
 defineOptions({ name: "SystemRoles" });
 
 const queryParams = reactive({
-  roleName: '',
-  status: ''
+  keyword: ''
 });
 
-const mockData = [
-  { id: 1, roleName: '超级管理员', roleKey: 'admin', order: 1, status: '1', createTime: '2023-01-01 00:00:00', remark: '系统超级管理员' },
-  { id: 2, roleName: '科室主任', roleKey: 'director', order: 2, status: '1', createTime: '2023-01-05 09:30:00', remark: '管理本科室患者与医生' },
-  { id: 3, roleName: '心电医生', roleKey: 'doctor', order: 3, status: '1', createTime: '2023-01-06 14:20:00', remark: '进行心电图诊断、复核' },
-  { id: 4, roleName: '护士', roleKey: 'nurse', order: 4, status: '1', createTime: '2023-02-10 11:15:00', remark: '日常监护、设备管理' },
-];
+const tableData = ref([]);
+const loading = ref(false);
+const currentPage = ref(1);
+const pageSize = ref(10);
+const total = ref(0);
 
-const tableData = ref([...mockData]);
+const getList = async () => {
+  loading.value = true;
+  try {
+    const params = {
+      keyword: queryParams.keyword || undefined,
+      pageNum: currentPage.value,
+      pageSize: pageSize.value
+    };
+    const res = await apiRolePage(params);
+    const data = res.data || res;
+    tableData.value = data.records || data.rows || [];
+    total.value = data.total || 0;
+  } catch (error) {
+    console.error('获取角色列表失败', error);
+  } finally {
+    loading.value = false;
+  }
+};
+
+onMounted(() => {
+  getList();
+});
+
 const dialogVisible = ref(false);
 const dialogTitle = ref('');
 
 const form = reactive({
-  id: undefined,
+  roleId: undefined,
   roleName: '',
-  roleKey: '',
-  order: 1,
-  status: '1',
-  remark: ''
+  description: '',
+  status: 1
 });
 
+const formRef = ref(null);
+
+const rules = {
+  roleName: [
+    { required: true, message: '请输入角色名称', trigger: 'blur' },
+    { min: 1, max: 32, message: '长度在 1 到 32 个字符', trigger: 'blur' }
+  ],
+  description: [
+    { max: 256, message: '长度最多 256 个字符', trigger: 'blur' }
+  ]
+};
+
 const handleSearch = () => {
-  let res = mockData;
-  if (queryParams.roleName) res = res.filter(item => item.roleName.includes(queryParams.roleName));
-  if (queryParams.status) res = res.filter(item => item.status === queryParams.status);
-  tableData.value = res;
+  currentPage.value = 1;
+  getList();
 };
 
 const handleReset = () => {
-  queryParams.roleName = '';
-  queryParams.status = '';
+  queryParams.keyword = '';
   handleSearch();
+};
+
+const handleSizeChange = (val) => {
+  pageSize.value = val;
+  getList();
+};
+
+const handleCurrentChange = (val) => {
+  currentPage.value = val;
+  getList();
 };
 
 const handleAdd = () => {
   dialogTitle.value = '新增角色';
-  Object.assign(form, { id: undefined, roleName: '', roleKey: '', order: 1, status: '1', remark: '' });
+  Object.assign(form, { roleId: undefined, roleName: '', description: '', status: 1 });
+  if (formRef.value) formRef.value.clearValidate();
   dialogVisible.value = true;
 };
 
 const handleEdit = (row) => {
   dialogTitle.value = '编辑角色';
-  Object.assign(form, row);
+  Object.assign(form, {
+    roleId: row.roleId,
+    roleName: row.roleName,
+    description: row.description,
+    status: row.status
+  });
+  if (formRef.value) formRef.value.clearValidate();
   dialogVisible.value = true;
 };
 
+const executeDelete = async (roleId, force = false) => {
+  await apiRoleDelete(roleId, force);
+  ElMessage.success('删除成功');
+  getList();
+};
+
 const handleDelete = (row) => {
-  ElMessageBox.confirm(`确认删除角色 "${row.roleName}" 吗？`, '警告', { type: 'warning' }).then(() => {
-    ElMessage.success('删除成功');
-  }).catch(() => {});
+  ElMessageBox.confirm(`确认删除角色 "${row.roleName}" 吗？`, '警告', { type: 'warning' })
+    .then(async () => {
+      try {
+        await executeDelete(row.roleId);
+      } catch (error) {
+        if (error.message && error.message.includes('关联')) {
+          ElMessageBox.confirm(`该角色已关联用户，是否强制删除？`, '强制删除确认', { type: 'error' })
+            .then(() => executeDelete(row.roleId, true))
+            .catch(() => {});
+        } else {
+          console.error('删除失败', error);
+        }
+      }
+    })
+    .catch(() => {});
 };
 
 const submitForm = () => {
-  ElMessage.success(form.id ? '修改成功' : '新增成功');
-  dialogVisible.value = false;
+  if (!formRef.value) return;
+  formRef.value.validate(async (valid) => {
+    if (valid) {
+      try {
+        if (form.roleId) {
+          await apiRoleEdit(form);
+          ElMessage.success('修改成功');
+        } else {
+          await apiRoleAdd(form);
+          ElMessage.success('新增成功');
+        }
+        dialogVisible.value = false;
+        getList();
+      } catch (error) {
+        console.error('提交失败', error);
+      }
+    }
+  });
 };
 
 // 权限树模拟 (简易展示)
@@ -80,13 +159,7 @@ const treeData = [
     <div class="search-wrapper">
       <el-form :inline="true" :model="queryParams" class="form-inline">
         <el-form-item label="角色名称">
-          <el-input v-model="queryParams.roleName" placeholder="请输入角色名称" clearable @keyup.enter="handleSearch" />
-        </el-form-item>
-        <el-form-item label="角色状态">
-          <el-select v-model="queryParams.status" placeholder="全部状态" clearable style="width: 150px">
-            <el-option label="正常" value="1" />
-            <el-option label="停用" value="0" />
-          </el-select>
+          <el-input v-model="queryParams.keyword" placeholder="请输入角色名称关键词" clearable @keyup.enter="handleSearch" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
@@ -99,45 +172,54 @@ const treeData = [
     </div>
 
     <div class="table-wrapper">
-      <el-table :data="tableData" border stripe height="100%">
-        <el-table-column prop="id" label="角色编号" width="100" align="center" />
+      <el-table :data="tableData" v-loading="loading" border stripe height="100%">
+        <el-table-column prop="roleId" label="角色编号" width="100" align="center" />
         <el-table-column prop="roleName" label="角色名称" width="150" />
-        <el-table-column prop="roleKey" label="权限字符" width="150" />
-        <el-table-column prop="order" label="显示顺序" width="100" align="center" />
+        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="userCount" label="关联用户数" width="120" align="center" />
         <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.status === '1' ? 'success' : 'info'">
-              {{ row.status === '1' ? '正常' : '停用' }}
+            <el-tag :type="row.status === 1 ? 'success' : 'info'">
+              {{ row.statusText || (row.status === 1 ? '启用' : '停用') }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="180" align="center" />
-        <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip />
         <el-table-column label="操作" width="180" fixed="right" align="center">
           <template #default="{ row }">
             <el-button type="primary" link :icon="Edit" size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button type="danger" link :icon="Delete" size="small" @click="handleDelete(row)" :disabled="row.roleKey==='admin'">删除</el-button>
+            <el-button type="danger" link :icon="Delete" size="small" @click="handleDelete(row)" :disabled="row.roleName==='超级管理员'">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
     </div>
 
+    <div class="pagination-wrapper">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total="total"
+        :page-sizes="[10, 20, 50, 100]"
+        background
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+      />
+    </div>
+
     <!-- 弹窗 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px">
-      <el-form :model="form" label-width="100px">
-        <el-form-item label="角色名称" required>
-          <el-input v-model="form.roleName" placeholder="请输入角色名称" />
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+        <el-form-item label="角色名称" prop="roleName">
+          <el-input v-model="form.roleName" placeholder="请输入角色名称 (1-32字符)" />
         </el-form-item>
-        <el-form-item label="权限字符" required>
-          <el-input v-model="form.roleKey" placeholder="例如: admin / doctor" />
+        <el-form-item label="描述" prop="description">
+          <el-input v-model="form.description" type="textarea" placeholder="例如: 负责心电解读、报告编写 (最多256字符)" />
         </el-form-item>
-        <el-form-item label="角色顺序">
-          <el-input-number v-model="form.order" :min="1" />
-        </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item label="状态" prop="status">
           <el-radio-group v-model="form.status">
-            <el-radio label="1">正常</el-radio>
-            <el-radio label="0">停用</el-radio>
+            <el-radio :label="1">正常</el-radio>
+            <el-radio :label="0">停用</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="菜单权限">
@@ -147,9 +229,6 @@ const treeData = [
             node-key="id"
             style="width: 100%; border: 1px solid var(--el-border-color); border-radius: 4px; padding: 10px;"
           />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" placeholder="请输入内容" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -185,6 +264,12 @@ const treeData = [
   .table-wrapper {
     flex: 1;
     overflow: hidden;
+  }
+
+  .pagination-wrapper {
+    margin-top: 16px;
+    display: flex;
+    justify-content: flex-end;
   }
 }
 </style>
