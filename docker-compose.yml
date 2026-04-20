@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  ecg-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ecg-frontend:latest
+    container_name: ecg-frontend-web
+    ports:
+      - "${PORT:-25555}:80"
+    environment:
+      # 在这里配置你的后端 API 地址，对应 Nginx 模板中的变量
+      - API_URL=http://112.124.70.235:8080
+    restart: unless-stopped
