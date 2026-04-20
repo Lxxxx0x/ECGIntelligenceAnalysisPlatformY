@@ -1,5 +1,5 @@
 # 构建阶段 (Build stage)
-FROM node:18-alpine AS build-stage
+FROM node:20-alpine AS build-stage
 
 # 安装 pnpm
 RUN npm install -g pnpm
@@ -9,8 +9,8 @@ WORKDIR /app
 # 复制 package.json 和 lock 文件
 COPY package.json pnpm-lock.yaml ./
 
-# 安装依赖
-RUN pnpm install
+# 安装依赖 (配置淘宝镜像源加速)
+RUN pnpm config set registry https://registry.npmmirror.com/ && pnpm install
 
 # 复制项目所有文件
 COPY . .
@@ -19,7 +19,7 @@ COPY . .
 RUN pnpm build
 
 # 生产阶段 (Production stage)
-FROM nginx:alpine
+FROM nginx:1.25-alpine
 
 # 设置环境变量，指定默认的后端 API 地址 (在运行时可以被覆盖)
 ENV API_URL=http://112.124.70.235:8080

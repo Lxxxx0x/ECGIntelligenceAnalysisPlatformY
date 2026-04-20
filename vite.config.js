@@ -17,7 +17,7 @@ export default defineConfig({
     proxy: {
       // 对接本地服务
       "/api": {
-        target: "http://112.124.70.235:8080",
+        target: "http://10.19.80.180:8080",
         changeOrigin: true,
       },
     },

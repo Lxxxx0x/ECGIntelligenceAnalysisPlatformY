@@ -3,14 +3,29 @@
         <!-- 搜索栏 -->
         <div class="search-bar">
             <el-form :inline="true" :model="searchQuery" class="form-inline">
-                <el-form-item label="设备编号">
-                    <el-input v-model="searchQuery.deviceNo" placeholder="设备号/科室" clearable></el-input>
+                <el-form-item label="设备名称">
+                    <el-input v-model="searchQuery.deviceName" placeholder="设备名称" clearable @keyup.enter="handleSearch"
+                        @clear="handleSearch"></el-input>
                 </el-form-item>
-                <el-form-item label="设备状态">
-                    <el-select v-model="searchQuery.status" placeholder="请选择状态" clearable style="width: 150px">
-                        <el-option label="正常" value="正常"></el-option>
-                        <el-option label="异常" value="异常"></el-option>
+                <el-form-item label="设备类型">
+                    <el-select v-model="searchQuery.deviceType" placeholder="全部类型" clearable style="width: 150px"
+                        @change="handleSearch">
+                        <el-option v-for="item in deviceTypeOptions" :key="item.value" :label="item.label"
+                            :value="item.value" />
                     </el-select>
+                </el-form-item>
+                <el-form-item label="设备病区">
+                    <el-select v-model="searchQuery.ward" placeholder="全部病区" clearable style="width: 150px"
+                        @change="handleSearch">
+                        <el-option v-for="item in wardOptions" :key="item.value" :label="item.label"
+                            :value="item.value" />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="采购时间">
+                    <el-date-picker v-model="searchQuery.purchaseDateRange" type="daterange" range-separator="至"
+                        start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD"
+                        @change="handleSearch">
+                    </el-date-picker>
                 </el-form-item>
                 <el-form-item>
                     <el-button type="primary" @click="handleSearch">
@@ -25,41 +40,58 @@
                         </el-icon>
                         重置
                     </el-button>
+                    <el-button type="success" @click="handleAdd">
+                        新增设备
+                    </el-button>
                 </el-form-item>
             </el-form>
         </div>
 
         <!-- 表格部分 -->
         <div class="table-container">
-            <el-table :data="tableData" border style="width: 100%" max-height="calc(100vh - 200px)">
+            <el-table v-loading="loading" :data="tableData" border style="width: 100%" max-height="calc(100vh - 200px)">
                 <el-table-column type="index" label="序号" width="60" align="center"></el-table-column>
-                <el-table-column prop="deviceNo" label="设备编号" width="120" align="center"></el-table-column>
-                <el-table-column prop="model" label="设备型号" min-width="140" align="center"></el-table-column>
-                <el-table-column prop="department" label="归属科室" min-width="120" align="center"></el-table-column>
-                <el-table-column prop="lastCalibration" label="上次校准时间" width="200" align="center"></el-table-column>
-                <el-table-column prop="nextCalibration" label="下次校准时间" width="180" align="center"></el-table-column>
-                <el-table-column prop="passRate" label="数据合格率" width="120" align="center"></el-table-column>
-                <el-table-column prop="status" label="当前状态" width="100" align="center">
+                <el-table-column prop="deviceCode" label="设备编号" width="140" align="center"></el-table-column>
+                <el-table-column prop="deviceName" label="设备名称" min-width="150" align="center"
+                    show-overflow-tooltip></el-table-column>
+                <el-table-column prop="deviceTypeText" label="设备类型" min-width="120" align="center"></el-table-column>
+                <el-table-column prop="deviceModel" label="设备型号" min-width="120" align="center"></el-table-column>
+                <el-table-column prop="wardName" label="归属病区" min-width="130" align="center"
+                    show-overflow-tooltip></el-table-column>
+                <el-table-column prop="manufacturer" label="厂商" min-width="140" align="center"
+                    show-overflow-tooltip></el-table-column>
+                <el-table-column prop="installDate" label="安装日期" width="130" align="center"></el-table-column>
+                <el-table-column prop="lastMaintainTime" label="上次维护时间" width="130" align="center"></el-table-column>
+                <el-table-column prop="nextMaintainTime" label="下次维护时间" width="130" align="center"></el-table-column>
+                <el-table-column prop="deviceStatusText" label="当前状态" width="100" align="center">
                     <template #default="{ row }">
-                        <el-tag :type="row.status === '正常' ? 'success' : 'danger'" plain size="small">
-                            {{ row.status }}
+                        <el-tag :type="getStatusType(row.deviceStatus)" plain size="small">
+                            {{ row.deviceStatusText }}
                         </el-tag>
                     </template>
                 </el-table-column>
-                <el-table-column label="操作" width="240" align="center" fixed="right">
+                <el-table-column label="操作" width="160" align="center" fixed="right">
                     <template #default="{ row }">
                         <el-button type="primary" link @click="handleDetail(row)">查看</el-button>
-                        <el-button type="primary" link @click="handleDetail(row)">编辑</el-button>
-                        <el-button type="primary" link @click="handleDetail(row)">记录</el-button>
-                        <el-button type="primary" link @click="handleDetail(row)">维护</el-button>
+                        <el-popconfirm title="确定删除该设备吗?" @confirm="handleDelete(row)">
+                            <template #reference>
+                                <el-button type="danger" link>删除</el-button>
+                            </template>
+                        </el-popconfirm>
                     </template>
                 </el-table-column>
             </el-table>
+
+            <div class="pagination-wrapper" style="margin-top: 20px; display: flex; justify-content: flex-end;">
+                <el-pagination v-model:current-page="pageNum" v-model:page-size="pageSize"
+                    :page-sizes="[10, 20, 50, 100]" background layout="total, sizes, prev, pager, next, jumper"
+                    :total="total" @size-change="handleSizeChange" @current-change="handleCurrentChange" />
+            </div>
         </div>
 
         <!-- 详情弹窗 -->
         <el-dialog v-model="dialogVisible" :title="dialogTitle" width="800px" destroy-on-close class="detail-dialog">
-            <div class="detail-content">
+            <div class="detail-content" v-loading="detailLoading" v-if="currentDetail">
                 <el-row :gutter="20">
                     <el-col :span="12">
                         <el-card shadow="never" class="info-card">
@@ -69,23 +101,31 @@
                                 </div>
                             </template>
                             <div class="info-list">
-                                <div class="info-item"><span class="label">设备编号：</span><span
-                                        class="value">PHILIPS-ECG-2000-001</span></div>
-                                <div class="info-item"><span class="label">设备名称：</span><span class="value">静态心电图机</span>
-                                </div>
-                                <div class="info-item"><span class="label">型号：</span><span class="value">ECG-2000</span>
-                                </div>
+                                <div class="info-item"><span class="label">设备编号：</span><span class="value">{{
+                                        currentDetail.basicInfo?.deviceCode }}</span></div>
+                                <div class="info-item"><span class="label">设备名称：</span><span class="value">{{
+                                        currentDetail.basicInfo?.deviceName }}</span></div>
+                                <div class="info-item"><span class="label">类型：</span><span class="value">{{
+                                        currentDetail.basicInfo?.deviceTypeText }}</span></div>
+                                <div class="info-item"><span class="label">型号：</span><span class="value">{{
+                                        currentDetail.basicInfo?.deviceModel }}</span></div>
                                 <div class="info-item">
                                     <span class="label">厂商：</span>
                                     <span class="value"><el-tag size="small" color="#f4f4f5"
-                                            style="color: #409eff; border-color: #d9ecff;">飞利浦</el-tag></span>
+                                            style="color: #409eff; border-color: #d9ecff;">{{
+                                            currentDetail.basicInfo?.manufacturer }}</el-tag></span>
                                 </div>
                                 <div class="info-item">
                                     <span class="label">状态：</span>
-                                    <span class="value"><el-tag type="success" size="small" plain>正常</el-tag></span>
+                                    <span class="value">
+                                        <el-tag :type="getStatusType(currentDetail.basicInfo?.deviceStatus)"
+                                            size="small" plain>{{ currentDetail.basicInfo?.deviceStatusText }}</el-tag>
+                                    </span>
                                 </div>
-                                <div class="info-item"><span class="label">所属病区：</span><span
-                                        class="value">心血管内科一区</span></div>
+                                <div class="info-item"><span class="label">所属病区：</span><span class="value">{{
+                                        currentDetail.basicInfo?.wardName }}</span></div>
+                                <div class="info-item"><span class="label">安装日期：</span><span class="value">{{
+                                        currentDetail.basicInfo?.installDate }}</span></div>
                             </div>
                         </el-card>
                     </el-col>
@@ -99,26 +139,25 @@
                             </template>
                             <div class="stat-list">
                                 <div class="stat-item"><span class="label">今日测量：</span><span
-                                        class="value text-primary">23
-                                        次</span></div>
+                                        class="value text-primary">{{
+                                        currentDetail.usageStat?.todayMeasureCount }} 次</span></div>
                                 <div class="stat-item"><span class="label">本周测量：</span><span
-                                        class="value text-primary">156
-                                        次</span></div>
+                                        class="value text-primary">{{
+                                        currentDetail.usageStat?.weekMeasureCount }} 次</span></div>
                                 <div class="stat-item"><span class="label">本月测量：</span><span
-                                        class="value text-primary">624
-                                        次</span></div>
+                                        class="value text-primary">{{
+                                        currentDetail.usageStat?.monthMeasureCount }} 次</span></div>
                                 <div class="stat-item bar-item">
-                                    <div class="bar-header"><span class="label">设备在线率：</span><span
-                                            class="value">98.5%</span>
-                                    </div>
-                                    <el-progress :percentage="98.5" color="#67c23a" :show-text="false"
-                                        :stroke-width="8"></el-progress>
+                                    <div class="bar-header"><span class="label">设备在线率：</span><span class="value">{{
+                                            currentDetail.usageStat?.onlineRate }}%</span></div>
+                                    <el-progress :percentage="Number(currentDetail.usageStat?.onlineRate) || 0"
+                                        color="#67c23a" :show-text="false" :stroke-width="8"></el-progress>
                                 </div>
                                 <div class="stat-item bar-item">
-                                    <div class="bar-header"><span class="label">错误率：</span><span
-                                            class="value">1.2%</span></div>
-                                    <el-progress :percentage="1.2" color="#f56c6c" :show-text="false"
-                                        :stroke-width="8"></el-progress>
+                                    <div class="bar-header"><span class="label">错误率：</span><span class="value">{{
+                                            currentDetail.usageStat?.errorRate }}%</span></div>
+                                    <el-progress :percentage="Number(currentDetail.usageStat?.errorRate) || 0"
+                                        color="#f56c6c" :show-text="false" :stroke-width="8"></el-progress>
                                 </div>
                             </div>
                         </el-card>
@@ -137,12 +176,13 @@
                                 </div>
                             </template>
                             <div class="tags-container">
-                                <el-tag class="dept-tag" color="#fcf9ff"
-                                    style="color: #8c5cf3; border-color: #f3e8ff; margin-right: 8px;">心血管内科一区</el-tag>
-                                <el-tag class="dept-tag" color="#fcf9ff"
-                                    style="color: #8c5cf3; border-color: #f3e8ff; margin-right: 8px;">急诊科</el-tag>
-                                <el-tag class="dept-tag" color="#fcf9ff"
-                                    style="color: #8c5cf3; border-color: #f3e8ff;">CCU</el-tag>
+                                <el-tag v-for="(tag, index) in currentDetail.deptTags" :key="index" class="dept-tag"
+                                    color="#fcf9ff"
+                                    style="color: #8c5cf3; border-color: #f3e8ff; margin-right: 8px; margin-bottom: 8px;">
+                                    {{ tag }}
+                                </el-tag>
+                                <div v-if="!currentDetail.deptTags || currentDetail.deptTags.length === 0"
+                                    style="color: #999; font-size: 13px;">暂无科室标签</div>
                             </div>
                         </el-card>
                     </el-col>
@@ -160,18 +200,26 @@
                                     <span>当前使用患者</span>
                                 </div>
                             </template>
-                            <el-table :data="patientData" style="width: 100%" class="patient-table">
-                                <el-table-column prop="name" label="患者姓名" width="90"></el-table-column>
-                                <el-table-column prop="bed" label="床位" width="60"></el-table-column>
-                                <el-table-column prop="status" label="状态" width="80">
+                            <el-table :data="currentDetail.currentPatients" style="width: 100%" class="patient-table">
+                                <el-table-column prop="patientName" label="患者姓名" width="90"></el-table-column>
+                                <el-table-column prop="wardBed" label="床位/病区" width="140"
+                                    show-overflow-tooltip></el-table-column>
+                                <el-table-column prop="monitorStatus" label="状态" width="80">
                                     <template #default="{ row }">
-                                        <el-tag type="success" size="small" plain v-if="row.status === '监测中'">{{
-                                            row.status }}</el-tag>
+                                        <el-tag type="danger" size="small" plain v-if="row.monitorStatus === '预警'">{{
+                                            row.monitorStatus }}</el-tag>
+                                        <el-tag type="success" size="small" plain
+                                            v-else-if="row.monitorStatus === '监测中'">{{ row.monitorStatus }}</el-tag>
                                         <el-tag type="warning" size="small" plain v-else color="#fffce6"
-                                            style="color: #ff9900; border-color: #ffe6ba;">{{ row.status }}</el-tag>
+                                            style="color: #ff9900; border-color: #ffe6ba;">{{ row.monitorStatus
+                                            }}</el-tag>
                                     </template>
                                 </el-table-column>
-                                <el-table-column prop="lastMeasure" label="最近测量"></el-table-column>
+                                <el-table-column prop="updateTime" label="更新时间">
+                                    <template #default="{ row }">
+                                        {{ row.updateTime ? row.updateTime.replace('T', ' ') : '-' }}
+                                    </template>
+                                </el-table-column>
                             </el-table>
                         </el-card>
                     </el-col>
@@ -183,56 +231,275 @@
                 </div>
             </template>
         </el-dialog>
+
+        <!-- 新增设备弹窗 -->
+        <el-dialog v-model="addDialogVisible" title="新增设备" width="600px" destroy-on-close>
+            <el-form :model="addForm" :rules="addRules" ref="addFormRef" label-width="120px">
+                <el-form-item label="设备名称" prop="deviceName">
+                    <el-input v-model="addForm.deviceName" placeholder="请输入设备名称"></el-input>
+                </el-form-item>
+                <el-form-item label="设备类型" prop="deviceType">
+                    <el-select v-model="addForm.deviceType" placeholder="请选择设备类型" style="width: 100%;">
+                        <el-option v-for="item in deviceTypeOptions" :key="item.value" :label="item.label"
+                            :value="Number(item.value) || item.value" v-show="item.value !== ''" />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="设备型号" prop="deviceModel">
+                    <el-input v-model="addForm.deviceModel" placeholder="请输入设备型号"></el-input>
+                </el-form-item>
+                <el-form-item label="厂商" prop="manufacturer">
+                    <el-input v-model="addForm.manufacturer" placeholder="请输入厂商名称"></el-input>
+                </el-form-item>
+                <el-form-item label="供应商" prop="supplier">
+                    <el-input v-model="addForm.supplier" placeholder="请输入供应商"></el-input>
+                </el-form-item>
+                <el-form-item label="安装日期" prop="installDate">
+                    <el-date-picker v-model="addForm.installDate" type="date" placeholder="选择日期"
+                        value-format="YYYY-MM-DD" style="width: 100%;"></el-date-picker>
+                </el-form-item>
+                <el-form-item label="绑定病区" prop="bindDeptId">
+                    <el-select v-model="addForm.bindDeptId" placeholder="请选择绑定病区" style="width: 100%;">
+                        <el-option v-for="item in wardOptions" :key="item.value" :label="item.label"
+                            :value="Number(item.value) || item.value" v-show="item.value !== ''" />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="设备状态" prop="deviceStatus">
+                    <el-radio-group v-model="addForm.deviceStatus">
+                        <el-radio :label="1">正常</el-radio>
+                        <el-radio :label="0">异常</el-radio>
+                    </el-radio-group>
+                </el-form-item>
+                <el-form-item label="上次维护时间" prop="lastMaintainTime">
+                    <el-date-picker v-model="addForm.lastMaintainTime" type="date" placeholder="选择日期"
+                        value-format="YYYY-MM-DD" style="width: 100%;"></el-date-picker>
+                </el-form-item>
+                <el-form-item label="下次维护时间" prop="nextMaintainTime">
+                    <el-date-picker v-model="addForm.nextMaintainTime" type="date" placeholder="选择日期"
+                        value-format="YYYY-MM-DD" style="width: 100%;"></el-date-picker>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="addDialogVisible = false">取消</el-button>
+                    <el-button type="primary" @click="submitAddDevice" :loading="addLoading">确定</el-button>
+                </div>
+            </template>
+        </el-dialog>
     </div>
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { Search, Refresh, User } from '@element-plus/icons-vue'
+import { apiDevicePage, apiDeviceDicts, apiDeviceAdd, apiDeviceDelete, apiDeviceDetail } from '@/apis/device'
+import { ElMessage } from 'element-plus'
 
 // 搜索条件
 const searchQuery = reactive({
-    deviceNo: '',
-    status: ''
+    deviceName: '',
+    deviceType: '',
+    ward: '',
+    purchaseDateRange: []
 })
 
-// 表格数据模拟
-const tableData = ref([
-    { deviceNo: 'ECG020', model: '普外科心电仪', department: '感染科', lastCalibration: '2026-04-15 12:00:22', nextCalibration: '2026-05-15', passRate: '98%', status: '正常' },
-    { deviceNo: 'ECG019', model: '骨科心电仪', department: '血液科', lastCalibration: '2026-04-15 12:00:22', nextCalibration: '2026-05-15', passRate: '98%', status: '正常' },
-    { deviceNo: 'ECG018', model: '内分泌心电仪', department: '疼痛科', lastCalibration: '2026-04-15 12:00:22', nextCalibration: '2026-05-15', passRate: '98%', status: '正常' },
-    { deviceNo: 'ECG017', model: '肾内科心电仪', department: '康复科', lastCalibration: '2026-04-15 12:00:22', nextCalibration: '2026-05-15', passRate: '98%', status: '正常' },
-    { deviceNo: 'ECG016', model: '呼吸科心电仪', department: '肿瘤科', lastCalibration: '2026-04-15 12:00:22', nextCalibration: '2026-05-15', passRate: '98%', status: '正常' }
-])
+// 字典数据
+const deviceTypeOptions = ref([])
+const wardOptions = ref([])
+
+// 表格数据
+const tableData = ref([])
+const loading = ref(false)
+const pageNum = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+
+// 获取字典项
+const getDicts = async () => {
+    try {
+        const res = await apiDeviceDicts();
+        if (res.code === 0 && res.data) {
+            deviceTypeOptions.value = res.data.deviceTypeOptions || [];
+            wardOptions.value = res.data.wardOptions || [];
+        }
+    } catch (error) {
+        console.error('获取设备字典失败:', error);
+    }
+}
+
+// 获取列表数据
+const fetchDevices = async () => {
+    loading.value = true;
+    try {
+        let purchaseDateStart = undefined;
+        let purchaseDateEnd = undefined;
+        if (searchQuery.purchaseDateRange && searchQuery.purchaseDateRange.length === 2) {
+            purchaseDateStart = searchQuery.purchaseDateRange[0];
+            purchaseDateEnd = searchQuery.purchaseDateRange[1];
+        }
+
+        const params = {
+            deviceName: searchQuery.deviceName || undefined,
+            deviceType: searchQuery.deviceType || undefined,
+            ward: searchQuery.ward || undefined,
+            purchaseDateStart,
+            purchaseDateEnd,
+            pageNum: pageNum.value,
+            pageSize: pageSize.value
+        };
+
+        const res = await apiDevicePage(params);
+        if (res.code === 0 && res.data) {
+            tableData.value = res.data.records || [];
+            total.value = res.data.total || 0;
+        }
+    } catch (error) {
+        console.error('获取设备列表失败:', error);
+    } finally {
+        loading.value = false;
+    }
+}
 
 // 查询方法
 const handleSearch = () => {
-    console.log('搜索:', searchQuery)
+    pageNum.value = 1;
+    fetchDevices();
 }
 
 // 重置方法
 const handleReset = () => {
-    searchQuery.deviceNo = ''
-    searchQuery.status = ''
+    searchQuery.deviceName = '';
+    searchQuery.deviceType = '';
+    searchQuery.ward = '';
+    searchQuery.purchaseDateRange = [];
+    handleSearch();
 }
 
-// 弹窗及弹窗数据
+const handleSizeChange = (val) => {
+    pageSize.value = val;
+    pageNum.value = 1;
+    fetchDevices();
+}
+
+const handleCurrentChange = (val) => {
+    pageNum.value = val;
+    fetchDevices();
+}
+
+// 帮助函数匹配状态颜色: 正常等
+const getStatusType = (status) => {
+    if (status === 1 || status === '正常') return 'success';
+    if (status === 0 || status === '异常') return 'danger';
+    return 'warning';
+}
+
+// 弹窗及数据
 const dialogVisible = ref(false)
-const dialogTitle = ref('静态心电图机 - 使用详情')
+const detailLoading = ref(false)
+const currentDetail = ref(null)
+const dialogTitle = ref('设备使用详情')
 
-const patientData = ref([
-    { name: '张三', bed: '01', status: '监测中', lastMeasure: '2026-04-11 14:30:00' },
-    { name: '王五', bed: '03', status: '监测中', lastMeasure: '2026-04-11 14:25:00' },
-    { name: '李四', bed: '05', status: '离线', lastMeasure: '2026-04-10 16:15:00' }
-])
+// 新增设备弹窗相关
+const addDialogVisible = ref(false)
+const addLoading = ref(false)
+const addFormRef = ref(null)
+const addForm = reactive({
+    deviceName: "",
+    deviceType: "",
+    deviceModel: "",
+    manufacturer: "",
+    supplier: "",
+    installDate: "",
+    bindDeptId: "",
+    lastMaintainTime: "",
+    nextMaintainTime: "",
+    deviceStatus: 1
+})
 
-// 记录详情
-const handleDetail = (row) => {
-    console.log('查看详情:', row)
-    // 更新弹窗标题
-    dialogTitle.value = `${row.model || '静态心电图机'} - 使用详情`
-    dialogVisible.value = true
+const addRules = {
+    deviceName: [{ required: true, message: '请输入设备名称', trigger: 'blur' }],
+    deviceType: [{ required: true, message: '请选择设备类型', trigger: 'change' }],
+    deviceModel: [{ required: true, message: '请输入设备型号', trigger: 'blur' }],
+    manufacturer: [{ required: true, message: '请输入厂商', trigger: 'blur' }],
+    bindDeptId: [{ required: true, message: '请选择绑定病区', trigger: 'change' }],
+    deviceStatus: [{ required: true, message: '请选择状态', trigger: 'change' }],
+    installDate: [{ required: true, message: '请选择安装日期', trigger: 'change' }],
 }
+
+const handleAdd = () => {
+    // 重置表单
+    Object.keys(addForm).forEach(key => addForm[key] = '');
+    addForm.deviceStatus = 1;
+    addDialogVisible.value = true;
+    // 重置校验状态
+    if (addFormRef.value) {
+        addFormRef.value.clearValidate();
+    }
+}
+
+const submitAddDevice = async () => {
+    if (!addFormRef.value) return;
+    await addFormRef.value.validate(async (valid) => {
+        if (valid) {
+            addLoading.value = true;
+            try {
+                const res = await apiDeviceAdd({ ...addForm });
+                if (res.code === 0) {
+                    ElMessage.success('新增设备成功');
+                    addDialogVisible.value = false;
+                    handleSearch();
+                } else {
+                    ElMessage.error(res.message || '新增设备失败');
+                }
+            } catch (error) {
+                console.error('新增设备失败:', error);
+                ElMessage.error('新增设备失败');
+            } finally {
+                addLoading.value = false;
+            }
+        }
+    });
+}
+
+const handleDelete = async (row) => {
+    if (!row.deviceId) return;
+    try {
+        const res = await apiDeviceDelete(row.deviceId);
+        if (res.code === 0) {
+            ElMessage.success('删除设备成功');
+            fetchDevices();
+        } else {
+            ElMessage.error(res.message || '删除设备失败');
+        }
+    } catch (error) {
+        console.error('删除设备失败:', error);
+        ElMessage.error('删除设备失败');
+    }
+}
+
+// 查看详情
+const handleDetail = async (row) => {
+    dialogTitle.value = `${row.deviceName || row.deviceModel || '设备'} - 使用详情`
+    dialogVisible.value = true;
+    detailLoading.value = true;
+    currentDetail.value = null; // reset
+    try {
+        const res = await apiDeviceDetail(row.deviceId);
+        if (res.code === 0 && res.data) {
+            currentDetail.value = res.data;
+        } else {
+            ElMessage.error(res.message || '获取设备详情数据失败');
+        }
+    } catch (error) {
+        console.error('获取设备详情失败:', error);
+    } finally {
+        detailLoading.value = false;
+    }
+}
+
+onMounted(() => {
+    getDicts();
+    fetchDevices();
+})
 </script>
 
 <style scoped>

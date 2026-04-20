@@ -1,234 +1,171 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Search, Bell, Clock, View, Check } from '@element-plus/icons-vue'
+import { apiWarningPageList, apiWarningDetail, apiWarningStatistics, apiWarningHandle } from '@/apis/warning'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 // Filters
 const searchQuery = ref('')
+const selectedWard = ref('')
 const selectedLevel = ref('')
 const selectedStatus = ref('')
 const dateRange = ref([])
 
 // Options
 const levelOptions = [
-    { label: '高危', value: 'high' },
-    { label: '中危', value: 'mid' },
-    { label: '低危', value: 'low' },
+    { label: '高危', value: '3' },
+    { label: '中危', value: '2' },
+    { label: '低危', value: '1' },
 ]
 
 const statusOptions = [
-    { label: '待确认', value: 'pending_confirm' },
-    { label: '待处理', value: 'pending_handle' },
-    { label: '处理中', value: 'handling' },
-    { label: '已处理', value: 'handled' },
+    { label: '待确认', value: '0' },
+    { label: '待处理', value: '1' },
+    { label: '处理中', value: '2' },
+    { label: '已处理', value: '3' },
+    { label: '已忽略', value: '4' },
 ]
 
-const stats = {
-    highRisk: 4,
-    pending: 7
+const stats = ref({
+    highRiskCount: 0,
+    pendingHandleCount: 0
+})
+
+const fetchStatistics = async () => {
+    try {
+        const res = await apiWarningStatistics()
+        if (res.code === 0 && res.data) {
+            stats.value = res.data
+        }
+    } catch (error) {
+        console.error('获取预警统计失败:', error)
+    }
 }
 
-// Table Data (Mocked based on image 1)
-const tableData = ref([
-    {
-        id: '1',
-        warningTime: '2026-04-11 10:02:00',
-        patientInfo: '王五/58岁/男',
-        name: '王五',
-        age: '58岁',
-        gender: '男',
-        hospitalNo: '2187225',
-        ward: '神经内科一区',
-        warningType: '心房颤动',
-        warningLevel: '高危',
-        status: '已处理',
-        handleTime: '2026-04-11 10:15:00',
-        content: 'AI检测到房颤心律，RR间期绝对不齐，心率波动在90-130次/分。患者有房颤病史，目前无明显不适。'
-    },
-    {
-        id: '2',
-        warningTime: '2026-04-11 11:33:00',
-        patientInfo: '赵六/72岁/女',
-        name: '赵六',
-        age: '72岁',
-        gender: '女',
-        hospitalNo: '2192221',
-        ward: '老年病科',
-        warningType: '心动过缓',
-        warningLevel: '中危',
-        status: '待处理',
-        handleTime: '-',
-        content: 'AI检测到窦性心动过缓，心率52次/分，患者有头晕症状。高龄患者，需评估窦房结功能。'
-    },
-    {
-        id: '3',
-        warningTime: '2026-04-11 08:32:00',
-        patientInfo: '张三/45岁/男',
-        name: '张三',
-        age: '45岁',
-        gender: '男',
-        hospitalNo: '2186225',
-        ward: '心血管内科一区',
-        warningType: 'ST段异常',
-        warningLevel: '中危',
-        status: '待处理',
-        handleTime: '-',
-        content: '监测到V1-V3导联ST段压低＞0.1mV，伴有T波倒置。建议结合心肌酶学指标进一步确认。'
-    },
-    {
-        id: '4',
-        warningTime: '2026-04-11 09:05:00',
-        patientInfo: '郑十/52岁/女',
-        name: '郑十',
-        age: '52岁',
-        gender: '女',
-        hospitalNo: '2179999',
-        ward: '居家',
-        warningType: '室性早搏增多',
-        warningLevel: '高危',
-        status: '待确认',
-        handleTime: '-',
-        content: '近1小时内频发室性早搏，偶发成对室早。需紧急联系患者到院复查。'
-    },
-    {
-        id: '5',
-        warningTime: '2026-04-11 10:35:00',
-        patientInfo: '林十四/55岁/女',
-        name: '林十四',
-        age: '55岁',
-        gender: '女',
-        hospitalNo: '2198888',
-        ward: '肾内科',
-        warningType: '室性早搏增多',
-        warningLevel: '高危',
-        status: '待处理',
-        handleTime: '-',
-        content: '长程心电图显示室早负荷超过10%，需评估心功能并调整抗心律失常药物。'
-    },
-    {
-        id: '6',
-        warningTime: '2026-04-11 17:05:00',
-        patientInfo: '黄十三/42岁/男',
-        name: '黄十三',
-        age: '42岁',
-        gender: '男',
-        hospitalNo: '2187777',
-        ward: '急诊科',
-        warningType: 'QT间期延长',
-        warningLevel: '高危',
-        status: '待确认',
-        handleTime: '-',
-        content: '校正QT间期(QTc)达520ms，存在发生尖端扭转型室速(TdP)的高风险。'
-    },
-    {
-        id: '7',
-        warningTime: '2026-04-11 14:35:00',
-        patientInfo: '陈十二/78岁/男',
-        name: '陈十二',
-        age: '78岁',
-        gender: '男',
-        hospitalNo: '2196666',
-        ward: '骨科',
-        warningType: 'ST-T改变',
-        warningLevel: '中危',
-        status: '待处理',
-        handleTime: '-',
-        content: '监测到多导联ST-T动态改变，骨科术后患者需警惕围手术期心肌缺血。'
-    },
-    {
-        id: '8',
-        warningTime: '2026-04-11 16:05:00',
-        patientInfo: '刘十一/32岁/女',
-        name: '刘十一',
-        age: '32岁',
-        gender: '女',
-        hospitalNo: '2185555',
-        ward: '产科',
-        warningType: '窦性心动过速',
-        warningLevel: '中危',
-        status: '待处理',
-        handleTime: '-',
-        content: '阵发性窦性心动过速，心率最高140次/分，考虑与妊娠生理性变化或近期劳累有关。'
-    },
-    {
-        id: '9',
-        warningTime: '2026-04-11 09:00:00',
-        patientInfo: '林十四/55岁/女',
-        name: '林十四',
-        age: '55岁',
-        gender: '女',
-        hospitalNo: '2198888',
-        ward: '肾内科',
-        warningType: '血钾异常',
-        warningLevel: '高危',
-        status: '已处理',
-        handleTime: '2026-04-11 09:15:00',
-        content: '心电图由于高钾血症表现出T波高尖，血钾复查值达6.5mmol/L，已紧急进行降钾治疗。'
-    },
-    {
-        id: '10',
-        warningTime: '2026-04-11 11:20:00',
-        patientInfo: '郑十/52岁/女',
-        name: '郑十',
-        age: '52岁',
-        gender: '女',
-        hospitalNo: '2179999',
-        ward: '居家',
-        warningType: 'RR间期过长',
-        warningLevel: '高危',
-        status: '处理中',
-        handleTime: '-',
-        content: '检测到夜间大于3秒的RR长间期，已通过App发送提醒并联系家属跟进。'
-    },
-    {
-        id: '11',
-        warningTime: '2026-04-11 14:45:00',
-        patientInfo: '李四/62岁/女',
-        name: '李四',
-        age: '62岁',
-        gender: '女',
-        hospitalNo: '2191885',
-        ward: '心血管内科二区',
-        warningType: '室速发作',
-        warningLevel: '高危',
-        status: '已处理',
-        handleTime: '2026-04-11 14:50:00',
-        content: '突发短阵室性心动过速，持续7拍，伴血液动力学波动。已予静脉应用胺碘酮。'
+// Table Data
+const tableData = ref([])
+const loading = ref(false)
+const pageNum = ref(1)
+const pageSize = ref(15)
+const total = ref(0)
+
+const fetchWarnings = async () => {
+    loading.value = true
+    try {
+        let startTime = undefined
+        let endTime = undefined
+        if (dateRange.value && dateRange.value.length === 2) {
+            startTime = dateRange.value[0] + ' 00:00:00'
+            endTime = dateRange.value[1] + ' 23:59:59'
+        }
+
+        const res = await apiWarningPageList({
+            keyword: searchQuery.value || undefined,
+            ward: selectedWard.value || undefined,
+            alertLevel: selectedLevel.value || undefined,
+            alertStatus: selectedStatus.value || undefined,
+            startTime,
+            endTime,
+            pageNum: pageNum.value,
+            pageSize: pageSize.value
+        })
+
+        if (res.code === 0 && res.data) {
+            tableData.value = res.data.records || []
+            total.value = res.data.total || 0
+        }
+    } catch (error) {
+        console.error('获取预警列表失败:', error)
+    } finally {
+        loading.value = false
     }
-])
+}
 
 // Dialog State
 const dialogVisible = ref(false)
 const currentDetail = ref(null)
 
 const handleQuery = () => {
-    console.log('Query warnings...')
+    pageNum.value = 1
+    fetchWarnings()
 }
 
-const showDetail = (row) => {
-    currentDetail.value = row
-    dialogVisible.value = true
+const handleSizeChange = (val) => {
+    pageSize.value = val
+    pageNum.value = 1
+    fetchWarnings()
 }
 
-const processWarning = () => {
-    console.log('Processing warning...', currentDetail.value.id)
-    dialogVisible.value = false
+const handleCurrentChange = (val) => {
+    pageNum.value = val
+    fetchWarnings()
+}
+
+const showDetail = async (row) => {
+    try {
+        const res = await apiWarningDetail(row.alertId)
+        if (res.code === 0 && res.data) {
+            currentDetail.value = res.data
+            dialogVisible.value = true
+        } else {
+            ElMessage.error(res.message || '获取预警详情失败')
+        }
+    } catch (error) {
+        console.error('获取预警详情失败:', error)
+        ElMessage.error('获取预警详情失败')
+    }
+}
+
+const processWarning = async () => {
+    if (!currentDetail.value) return;
+    try {
+        const { value } = await ElMessageBox.prompt('请输入处理备注', '处理预警', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            inputPlaceholder: '请输入处理备注（可为空）',
+            inputErrorMessage: '备注内容不能超过200字符',
+            inputPattern: /^.{0,200}$/
+        });
+
+        const res = await apiWarningHandle(currentDetail.value.alertId, value || '');
+
+        if (res.code === 0) {
+            ElMessage.success('处理成功');
+            dialogVisible.value = false;
+            fetchWarnings(); // Refresh the list
+            fetchStatistics(); // Update top stats
+        } else {
+            ElMessage.error(res.message || '处理失败');
+        }
+    } catch (error) {
+        if (error !== 'cancel') {
+            console.error('处理预警错误:', error);
+            ElMessage.error('处理失败，请重试');
+        }
+    }
 }
 
 // Helpers for tag styles
 const getRiskLevelClass = (level) => {
-    if (level === '高危') return 'level-high'
-    if (level === '中危') return 'level-mid'
-    if (level === '低危') return 'level-low'
+    if (level === '高危' || level == 3) return 'level-high'
+    if (level === '中危' || level == 2) return 'level-mid'
+    if (level === '低危' || level == 1) return 'level-low'
     return ''
 }
 
 const getStatusClass = (status) => {
-    if (status === '待确认') return 'status-confirm'
-    if (status === '待处理') return 'status-pending'
-    if (status === '处理中') return 'status-processing'
-    if (status === '已处理') return 'status-handled'
+    if (status === '待确认' || status == 0) return 'status-confirm'
+    if (status === '待处理' || status == 1) return 'status-pending'
+    if (status === '处理中' || status == 2) return 'status-processing'
+    if (status === '已处理' || status == 3) return 'status-handled'
+    if (status === '已忽略' || status == 4) return 'status-handled' // Using same for now
     return ''
 }
+
+onMounted(() => {
+    fetchWarnings()
+    fetchStatistics()
+})
 </script>
 
 <template>
@@ -236,9 +173,10 @@ const getStatusClass = (status) => {
         <el-card shadow="never" class="main-card">
             <div class="filter-bar">
                 <div class="filter-group">
-                    <el-input v-model="searchQuery" placeholder="搜索患者姓名/住院号" class="search-input" clearable>
+                    <el-input v-model="searchQuery" placeholder="搜索患者姓名/住院号" class="search-input" clearable
+                        @keyup.enter="handleQuery" @clear="handleQuery">
                         <template #append>
-                            <el-button type="primary" class="append-search-btn">
+                            <el-button type="primary" class="append-search-btn" @click="handleQuery">
                                 <el-icon>
                                     <Search />
                                 </el-icon>
@@ -246,18 +184,24 @@ const getStatusClass = (status) => {
                         </template>
                     </el-input>
 
-                    <el-select v-model="selectedLevel" placeholder="全部级别" clearable class="filter-select">
+                    <el-input v-model="selectedWard" placeholder="病区筛选" style="width: 140px;" clearable
+                        @keyup.enter="handleQuery" @clear="handleQuery" />
+
+                    <el-select v-model="selectedLevel" placeholder="全部级别" clearable class="filter-select"
+                        @change="handleQuery">
                         <el-option v-for="item in levelOptions" :key="item.value" :label="item.label"
                             :value="item.value" />
                     </el-select>
 
-                    <el-select v-model="selectedStatus" placeholder="全部状态" clearable class="filter-select">
+                    <el-select v-model="selectedStatus" placeholder="全部状态" clearable class="filter-select"
+                        @change="handleQuery">
                         <el-option v-for="item in statusOptions" :key="item.value" :label="item.label"
                             :value="item.value" />
                     </el-select>
 
                     <el-date-picker v-model="dateRange" type="daterange" range-separator="→" start-placeholder="开始时间"
-                        end-placeholder="结束时间" format="YYYY-MM-DD" value-format="YYYY-MM-DD" class="filter-date" />
+                        end-placeholder="结束时间" format="YYYY-MM-DD" value-format="YYYY-MM-DD" class="filter-date"
+                        @change="handleQuery" />
                 </div>
 
                 <div class="action-group">
@@ -277,44 +221,52 @@ const getStatusClass = (status) => {
                         <Bell />
                     </el-icon>
                     <span class="label">高危预警</span>
-                    <span class="value">{{ stats.highRisk }}</span>
+                    <span class="value">{{ stats.highRiskCount }}</span>
                 </div>
                 <div class="stat-item pending">
                     <el-icon class="icon">
                         <Clock />
                     </el-icon>
                     <span class="label">待处理预警</span>
-                    <span class="value">{{ stats.pending }}</span>
+                    <span class="value">{{ stats.pendingHandleCount }}</span>
                 </div>
             </div>
 
             <div class="table-content">
-                <el-table :data="tableData" style="width: 100%" height="100%">
+                <el-table v-loading="loading" :data="tableData" style="width: 100%" height="100%">
                     <el-table-column type="index" label="序号" width="60" align="center" />
-                    <el-table-column prop="warningTime" label="预警时间" width="160" />
+                    <el-table-column prop="warningTime" label="预警时间" width="160">
+                        <template #default="{ row }">
+                            {{ row.warningTime ? row.warningTime.replace('T', ' ') : '-' }}
+                        </template>
+                    </el-table-column>
                     <el-table-column prop="patientInfo" label="患者信息" width="140" />
-                    <el-table-column prop="hospitalNo" label="住院号" width="100" />
-                    <el-table-column prop="ward" label="病区" min-width="120" show-overflow-tooltip />
+                    <el-table-column prop="inpatientNo" label="住院号" width="100" />
+                    <el-table-column prop="wardName" label="病区" min-width="120" show-overflow-tooltip />
                     <el-table-column prop="warningType" label="预警类型" min-width="120" show-overflow-tooltip>
                         <template #default="{ row }">
                             <span class="text-type">{{ row.warningType }}</span>
                         </template>
                     </el-table-column>
-                    <el-table-column prop="warningLevel" label="预警级别" width="100" align="center">
+                    <el-table-column prop="alertLevelText" label="预警级别" width="100" align="center">
                         <template #default="{ row }">
-                            <span class="custom-tag" :class="getRiskLevelClass(row.warningLevel)">
-                                {{ row.warningLevel }}
+                            <span class="custom-tag" :class="getRiskLevelClass(row.alertLevelText)">
+                                {{ row.alertLevelText }}
                             </span>
                         </template>
                     </el-table-column>
-                    <el-table-column prop="status" label="状态" width="100" align="center">
+                    <el-table-column prop="alertStatusText" label="状态" width="100" align="center">
                         <template #default="{ row }">
-                            <span class="custom-tag" :class="getStatusClass(row.status)">
-                                {{ row.status }}
+                            <span class="custom-tag" :class="getStatusClass(row.alertStatusText)">
+                                {{ row.alertStatusText }}
                             </span>
                         </template>
                     </el-table-column>
-                    <el-table-column prop="handleTime" label="处理时间" width="160" align="center" />
+                    <el-table-column prop="handleTime" label="处理时间" width="160" align="center">
+                        <template #default="{ row }">
+                            {{ row.handleTime ? row.handleTime.replace('T', ' ') : '-' }}
+                        </template>
+                    </el-table-column>
                     <el-table-column label="操作" width="180" align="center" fixed="right">
                         <template #default="{ row }">
                             <div class="action-cell">
@@ -323,8 +275,8 @@ const getStatusClass = (status) => {
                                         <View />
                                     </el-icon>查看详情
                                 </el-button>
-                                <el-button v-if="row.status !== '已处理'" type="primary" size="small" class="action-handle"
-                                    @click="showDetail(row)">
+                                <el-button v-if="row.alertStatusText !== '已处理'" type="primary" size="small"
+                                    class="action-handle" @click="showDetail(row)">
                                     <el-icon class="mr-1">
                                         <Check />
                                     </el-icon>处理
@@ -333,6 +285,12 @@ const getStatusClass = (status) => {
                         </template>
                     </el-table-column>
                 </el-table>
+            </div>
+
+            <div class="pagination-wrapper" style="margin-top: 20px; display: flex; justify-content: flex-end;">
+                <el-pagination v-model:current-page="pageNum" v-model:page-size="pageSize"
+                    :page-sizes="[10, 15, 20, 30, 50]" background layout="total, sizes, prev, pager, next, jumper"
+                    :total="total" @size-change="handleSizeChange" @current-change="handleCurrentChange" />
             </div>
         </el-card>
 
@@ -343,21 +301,23 @@ const getStatusClass = (status) => {
                 <div class="info-grid header-grid">
                     <div class="grid-item">
                         <div class="label">预警时间</div>
-                        <div class="value font-num">{{ currentDetail.warningTime }}</div>
+                        <div class="value font-num">{{ currentDetail.warningTime ?
+                            currentDetail.warningTime.replace('T', ' ') :
+                            '-' }}</div>
                     </div>
                     <div class="grid-item">
                         <div class="label">预警级别</div>
                         <div class="value">
-                            <span class="custom-tag" :class="getRiskLevelClass(currentDetail.warningLevel)">
-                                {{ currentDetail.warningLevel }}
+                            <span class="custom-tag" :class="getRiskLevelClass(currentDetail.alertLevelText)">
+                                {{ currentDetail.alertLevelText }}
                             </span>
                         </div>
                     </div>
                     <div class="grid-item">
                         <div class="label">预警状态</div>
                         <div class="value">
-                            <span class="custom-tag" :class="getStatusClass(currentDetail.status)">
-                                {{ currentDetail.status }}
+                            <span class="custom-tag" :class="getStatusClass(currentDetail.alertStatusText)">
+                                {{ currentDetail.alertStatusText }}
                             </span>
                         </div>
                     </div>
@@ -368,36 +328,71 @@ const getStatusClass = (status) => {
                 <!-- Patient Info -->
                 <div class="section">
                     <div class="section-title">患者信息</div>
-                    <div class="patient-title">{{ currentDetail.name }}/{{ currentDetail.age }}/{{ currentDetail.gender
-                    }}</div>
+                    <div class="patient-title">{{ currentDetail.patientName }}/{{ currentDetail.age }}岁/{{
+                        currentDetail.genderText }}</div>
                     <div class="info-row">
                         <span class="label">住院号：</span>
-                        <span class="value">{{ currentDetail.hospitalNo }}</span>
+                        <span class="value">{{ currentDetail.inpatientNo }}</span>
                     </div>
                     <div class="info-row">
                         <span class="label">病区：</span>
-                        <span class="value">{{ currentDetail.ward }}</span>
+                        <span class="value">{{ currentDetail.wardName }}</span>
                     </div>
                 </div>
 
-                <!-- Warning Type -->
+                <!-- Warning Type and Description -->
                 <div class="section mt-24">
-                    <div class="label mb-8">预警类型</div>
-                    <span class="text-type bold-type">{{ currentDetail.warningType }}</span>
+                    <div class="label mb-8">预警类型与说明</div>
+                    <span class="text-type bold-type mb-8" style="display:block;">分类：{{ currentDetail.warningType
+                    }}</span>
+                    <div class="content-box">
+                        说明：{{ currentDetail.warningDesc || '暂无说明' }}
+                    </div>
                 </div>
 
-                <!-- Warning Content -->
+                <!-- AI Analysis -->
                 <div class="section mt-24">
-                    <div class="label mb-8">预警内容</div>
+                    <div class="label mb-8">AI 辅助分析</div>
                     <div class="content-box">
-                        {{ currentDetail.content }}
+                        <div v-if="currentDetail.aiConclusion" class="mb-8"><strong>AI 结论：</strong>{{
+                            currentDetail.aiConclusion
+                        }}</div>
+                        <div v-if="currentDetail.clinicalManifestation" class="mb-8"><strong>临床表现：</strong>{{
+                            currentDetail.clinicalManifestation }}</div>
+                        <div v-if="currentDetail.lisHint"><strong>LIS 建议：</strong>{{ currentDetail.lisHint }}</div>
+                        <div
+                            v-if="!currentDetail.aiConclusion && !currentDetail.clinicalManifestation && !currentDetail.lisHint">
+                            暂无相关的AI分析辅助建议</div>
+                    </div>
+                </div>
+
+                <!-- Handle Info (If Processed) -->
+                <div v-if="currentDetail.handleTime" class="section mt-24"
+                    style="background: #f8fafc; padding: 16px; border-radius: 6px;">
+                    <div class="section-title"
+                        style="margin-bottom: 12px; font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                        处理记录</div>
+                    <div class="info-row">
+                        <span class="label">处理人：</span>
+                        <span class="value">{{ currentDetail.handleUserName || '-' }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">处理时间：</span>
+                        <span class="value">{{ currentDetail.handleTime ? currentDetail.handleTime.replace('T', ' ') :
+                            '-'
+                        }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">处理备注：</span>
+                        <span class="value">{{ currentDetail.handleRemark || '无' }}</span>
                     </div>
                 </div>
             </div>
             <template #footer>
                 <div class="dialog-footer">
                     <el-button @click="dialogVisible = false">关闭</el-button>
-                    <el-button type="primary" @click="processWarning">处理预警</el-button>
+                    <el-button v-if="currentDetail?.alertStatusText !== '已处理'" type="primary"
+                        @click="processWarning">处理预警</el-button>
                 </div>
             </template>
         </el-dialog>

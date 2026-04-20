@@ -1,10 +1,10 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import Layout from '../layout/layout.vue'
+import { createRouter, createWebHistory } from "vue-router";
+import Layout from "../layout/layout.vue";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-     {
+    {
       path: "/",
       component: Layout,
       redirect: "/workbench",
@@ -67,21 +67,21 @@ const router = createRouter({
         {
           path: "system/users",
           name: "system-users",
-          component: () => import("@/system/users/index.vue"),
+          component: () => import("@/views/system/users/index.vue"),
         },
         {
           path: "system/roles",
           name: "system-roles",
-          component: () => import("@/system/roles/index.vue"),
+          component: () => import("@/views/system/roles/index.vue"),
         },
         {
           path: "system/departments",
           name: "system-departments",
-          component: () => import("@/system/departments/index.vue"),
-        }
+          component: () => import("@/views/system/departments/index.vue"),
+        },
       ],
     },
   ],
-})
+});
 
-export default router
+export default router;

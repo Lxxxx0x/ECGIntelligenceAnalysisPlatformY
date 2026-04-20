@@ -15,38 +15,42 @@
                     <div class="filter-item">
                         <span class="label">状态：</span>
                         <el-select v-model="searchQuery.status" placeholder="全部状态" clearable style="width: 140px;">
-                            <el-option label="已审核" value="已审核" />
-                            <el-option label="待审核" value="待审核" />
+                            <el-option v-for="item in statusOptions" :key="item.value" :label="item.label"
+                                :value="item.value" />
                         </el-select>
                     </div>
                 </div>
                 <div class="action-group">
-                    <el-button type="primary" :icon="Search" class="query-btn">查询</el-button>
+                    <el-button type="primary" :icon="Search" class="query-btn" @click="handleQuery">查询</el-button>
                 </div>
             </div>
 
             <!-- 列表区 -->
             <div class="table-content">
-                <el-table :data="tableData" style="width: 100%"
+                <el-table v-loading="loading" :data="tableData" style="width: 100%"
                     :header-cell-style="{ background: '#f5f7fa', color: '#606266', padding: '12px 0' }">
                     <el-table-column prop="reportNo" label="报告编号" width="140" />
                     <el-table-column prop="patientInfo" label="患者信息" width="140" />
                     <el-table-column prop="hospitalNo" label="住院号" width="120" />
-                    <el-table-column prop="collectTime" label="采集时间" width="170" />
+                    <el-table-column prop="collectionTime" label="采集时间" width="170">
+                        <template #default="scope">
+                            {{ scope.row.collectionTime ? scope.row.collectionTime.replace('T', ' ') : '-' }}
+                        </template>
+                    </el-table-column>
                     <el-table-column prop="aiConclusion" label="AI结论" min-width="180" show-overflow-tooltip />
-                    <el-table-column prop="doctorConclusion" label="医生结论" width="120">
+                    <el-table-column prop="doctorConclusion" label="医生结论" width="160" show-overflow-tooltip>
                         <template #default="scope">
                             {{ scope.row.doctorConclusion || '-' }}
                         </template>
                     </el-table-column>
-                    <el-table-column prop="reviewDoctor" label="审核医生" width="100">
+                    <el-table-column prop="auditDoctorName" label="审核医生" width="100">
                         <template #default="scope">
-                            {{ scope.row.reviewDoctor || '-' }}
+                            {{ scope.row.auditDoctorName || '-' }}
                         </template>
                     </el-table-column>
-                    <el-table-column prop="reviewTime" label="审核时间" width="170">
+                    <el-table-column prop="auditTime" label="审核时间" width="170">
                         <template #default="scope">
-                            {{ scope.row.reviewTime || '-' }}
+                            {{ scope.row.auditTime ? scope.row.auditTime.replace('T', ' ') : '-' }}
                         </template>
                     </el-table-column>
                     <el-table-column prop="status" label="状态" width="100">
@@ -60,10 +64,17 @@
                     <el-table-column label="操作" fixed="right" width="120" align="center">
                         <template #default="scope">
                             <el-button link type="primary" size="small" @click="handleView(scope.row)">查看</el-button>
-                            <el-button link type="primary" size="small">下载</el-button>
+                            <el-button link type="primary" size="small"
+                                @click="handleDownload(scope.row.reportId)">下载</el-button>
                         </template>
                     </el-table-column>
                 </el-table>
+            </div>
+
+            <div class="pagination-wrapper">
+                <el-pagination v-model:current-page="pageNum" v-model:page-size="pageSize"
+                    :page-sizes="[10, 20, 50, 100]" background layout="total, sizes, prev, pager, next, jumper"
+                    :total="total" @size-change="handleSizeChange" @current-change="handleCurrentChange" />
             </div>
         </el-card>
 
@@ -76,31 +87,50 @@
 
                 <!-- 块1：患者信息 -->
                 <div class="report-section">
-                    <div class="section-title">患者信息</div>
+                    <div class="section-title">患者基础信息</div>
                     <div class="section-content split-3">
-                        <div>患者姓名: {{ currentReport?.patientInfo }}</div>
-                        <div>住院号: {{ currentReport?.hospitalNo }}</div>
-                        <div>采集时间: {{ currentReport?.collectTime }}</div>
+                        <div>患者姓名: {{ currentReport?.patientName || '-' }} ({{ currentReport?.gender || '-' }}/{{
+                            currentReport?.age || '-' }}岁)</div>
+                        <div>住院号: {{ currentReport?.hospitalNo || '-' }}</div>
+                        <div>采集时间: {{ currentReport?.collectionTime ? currentReport.collectionTime.replace('T', ' ') :
+                            '-' }}
+                        </div>
                     </div>
                 </div>
 
                 <!-- 块2：AI诊断结果 -->
                 <div class="report-section">
-                    <div class="section-title">AI诊断结果</div>
+                    <div class="section-title">AI 原始诊断结论</div>
                     <div class="section-content">
-                        结论: {{ currentReport?.aiConclusion }}
+                        结论: {{ currentReport?.aiConclusion || '暂无内容' }}
                     </div>
                 </div>
 
                 <!-- 块3：医生审核意见 -->
                 <div class="report-section">
-                    <div class="section-title">医生审核意见</div>
-                    <div class="section-content" style="padding-bottom: 40px;">
-                        结论: {{ currentReport?.doctorConclusion || '无' }}
+                    <div class="section-title">医生最终诊断与建议</div>
+                    <div class="section-content" style="padding-bottom: 20px;">
+                        <div style="margin-bottom: 12px;"><strong>结论:</strong> {{ currentReport?.doctorConclusion || '无'
+                        }}
+                        </div>
+                        <div><strong>建议:</strong> {{ currentReport?.doctorSuggestion || '无' }}</div>
                     </div>
-                    <div class="section-footer">
-                        <div>审核医生: {{ currentReport?.reviewDoctor || '无' }}</div>
-                        <div>审核时间: {{ currentReport?.reviewTime || '无' }}</div>
+                    <div class="section-footer"
+                        style="display: block; border-top: 1px dashed #ebeef5; padding-top: 16px; margin-top: 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <div>报告生成医生: {{ currentReport?.reportCreateDoctorName || '无' }}</div>
+                            <div>报告生成时间: {{ currentReport?.reportCreateTime ?
+                                currentReport.reportCreateTime.replace('T', ' ') :
+                                '无' }}</div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <div>审核医生: {{ currentReport?.auditDoctorName || '无' }}</div>
+                            <div>审核时间: {{ currentReport?.auditTime ? currentReport.auditTime.replace('T', ' ') : '无' }}
+                            </div>
+                        </div>
+                        <div v-if="currentReport?.auditOpinion" style="color: #e6a23c; font-size: 13px;">
+                            审核意见: {{ currentReport.auditOpinion }}
+                        </div>
                     </div>
                 </div>
 
@@ -110,7 +140,8 @@
             <template #footer>
                 <span class="dialog-footer">
                     <el-button @click="dialogVisible = false">关闭</el-button>
-                    <el-button type="primary" :icon="Download">下载PDF</el-button>
+                    <el-button type="primary" :icon="Download"
+                        @click="handleDownload(currentReport?.reportId)">下载PDF</el-button>
                     <el-button :icon="Printer">打印</el-button>
                 </span>
             </template>
@@ -119,8 +150,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { Search, Download, Printer } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
+import { apiDiagnosisReportsPage, apiDiagnosisReportsDicts, apiDiagnosisReportDetail, apiDiagnosisReportDownload } from '@/apis/reports';
 
 const searchQuery = ref({
     reportNo: '',
@@ -128,24 +161,104 @@ const searchQuery = ref({
     status: ''
 });
 
+const statusOptions = ref([]);
+
 const dialogVisible = ref(false);
 const currentReport = ref(null);
 
-const tableData = ref([
-    { reportNo: '20260411001', patientInfo: '王五/58岁/男', hospitalNo: '2187225', collectTime: '2026-04-11 10:05:00', aiConclusion: '心房颤动', doctorConclusion: '审核通过', reviewDoctor: '王医生', reviewTime: '2026-04-11 10:30:00', status: '已审核' },
-    { reportNo: '20260411002', patientInfo: '周八/48岁/女', hospitalNo: '2143093', collectTime: '2026-04-11 15:25:00', aiConclusion: '正常心电图', doctorConclusion: '审核通过', reviewDoctor: '王医生', reviewTime: '2026-04-11 15:45:00', status: '已审核' },
-    { reportNo: '20260411003', patientInfo: '张三/45岁/男', hospitalNo: '2186225', collectTime: '2026-04-11 08:35:00', aiConclusion: '窦性心律，ST段轻度压低', doctorConclusion: '', reviewDoctor: '', reviewTime: '', status: '待审核' },
-    { reportNo: '20260411004', patientInfo: '赵六/72岁/女', hospitalNo: '2192221', collectTime: '2026-04-11 11:35:00', aiConclusion: '窦性心动过缓', doctorConclusion: '', reviewDoctor: '', reviewTime: '', status: '待审核' },
-    { reportNo: '20260411005', patientInfo: '刘十一/32岁/女', hospitalNo: '2185555', collectTime: '2026-04-11 16:05:00', aiConclusion: '窦性心动过速，偶发房早', doctorConclusion: '', reviewDoctor: '', reviewTime: '', status: '待审核' },
-    { reportNo: '20260411006', patientInfo: '陈十二/78岁/男', hospitalNo: '2196666', collectTime: '2026-04-11 14:35:00', aiConclusion: '窦性心律，左室肥厚伴劳损', doctorConclusion: '', reviewDoctor: '', reviewTime: '', status: '待审核' },
-    { reportNo: '20260411007', patientInfo: '黄十三/42岁/男', hospitalNo: '2187777', collectTime: '2026-04-11 17:05:00', aiConclusion: '窦性心律，QT间期延长', doctorConclusion: '', reviewDoctor: '', reviewTime: '', status: '待审核' },
-    { reportNo: '20260411008', patientInfo: '林十四/55岁/女', hospitalNo: '2198888', collectTime: '2026-04-11 10:35:00', aiConclusion: '窦性心律，频发室性早搏', doctorConclusion: '', reviewDoctor: '', reviewTime: '', status: '待审核' }
-]);
+const tableData = ref([]);
+const loading = ref(false);
+const pageNum = ref(1);
+const pageSize = ref(10);
+const total = ref(0);
 
-const handleView = (row) => {
-    currentReport.value = row;
-    dialogVisible.value = true;
+const getDicts = async () => {
+    try {
+        const res = await apiDiagnosisReportsDicts();
+        if (res.code === 0 && res.data) {
+            statusOptions.value = res.data.statusList || [];
+        }
+    } catch (error) {
+        console.error('获取字典数据失败:', error);
+    }
 };
+
+const fetchReports = async () => {
+    loading.value = true;
+    try {
+        const res = await apiDiagnosisReportsPage({
+            reportNo: searchQuery.value.reportNo || undefined,
+            patientName: searchQuery.value.patientName || undefined,
+            status: searchQuery.value.status || undefined,
+            pageNum: pageNum.value,
+            pageSize: pageSize.value
+        });
+        if (res.code === 0 && res.data) {
+            tableData.value = res.data.list || [];
+            total.value = res.data.total || 0;
+        }
+    } catch (error) {
+        console.error('获取报告列表失败:', error);
+    } finally {
+        loading.value = false;
+    }
+};
+
+const handleQuery = () => {
+    pageNum.value = 1;
+    fetchReports();
+};
+
+const handleSizeChange = (val) => {
+    pageSize.value = val;
+    pageNum.value = 1;
+    fetchReports();
+};
+
+const handleCurrentChange = (val) => {
+    pageNum.value = val;
+    fetchReports();
+};
+
+const handleView = async (row) => {
+    try {
+        const res = await apiDiagnosisReportDetail(row.reportId);
+        if (res.code === 0 && res.data) {
+            // 合并列表的基础数据和获取到的详情数据
+            currentReport.value = { ...row, ...res.data };
+            dialogVisible.value = true;
+        }
+    } catch (error) {
+        console.error('获取报告详情失败:', error);
+        ElMessage.error('获取报告详情失败');
+    }
+};
+
+const handleDownload = async (reportId) => {
+    if (!reportId) return;
+    try {
+        const res = await apiDiagnosisReportDownload(reportId);
+        // 创建Blob对象并下载
+        const blob = new Blob([res], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `诊断报告_${reportId}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        ElMessage.success('报告下载成功');
+    } catch (error) {
+        console.error('下载报告失败:', error);
+        ElMessage.error('下载报告失败');
+    }
+};
+
+onMounted(() => {
+    getDicts();
+    fetchReports();
+});
 </script>
 
 <style lang="scss" scoped>
