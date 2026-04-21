@@ -115,13 +115,13 @@ const handleDelete = (row) => {
         if (error.message && error.message.includes('关联')) {
           ElMessageBox.confirm(`该角色已关联用户，是否强制删除？`, '强制删除确认', { type: 'error' })
             .then(() => executeDelete(row.roleId, true))
-            .catch(() => {});
+            .catch(() => { });
         } else {
           console.error('删除失败', error);
         }
       }
     })
-    .catch(() => {});
+    .catch(() => { });
 };
 
 const submitForm = () => {
@@ -188,23 +188,17 @@ const treeData = [
         <el-table-column label="操作" width="180" fixed="right" align="center">
           <template #default="{ row }">
             <el-button type="primary" link :icon="Edit" size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button type="danger" link :icon="Delete" size="small" @click="handleDelete(row)" :disabled="row.roleName==='超级管理员'">删除</el-button>
+            <el-button type="danger" link :icon="Delete" size="small" @click="handleDelete(row)"
+              :disabled="row.roleName === '超级管理员'">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
     </div>
 
     <div class="pagination-wrapper">
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :total="total"
-        :page-sizes="[10, 20, 50, 100]"
-        background
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
+      <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :total="total"
+        :page-sizes="[10, 20, 50, 100]" background layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handleSizeChange" @current-change="handleCurrentChange" />
     </div>
 
     <!-- 弹窗 -->
@@ -223,12 +217,8 @@ const treeData = [
           </el-radio-group>
         </el-form-item>
         <el-form-item label="菜单权限">
-          <el-tree
-            :data="treeData"
-            show-checkbox
-            node-key="id"
-            style="width: 100%; border: 1px solid var(--el-border-color); border-radius: 4px; padding: 10px;"
-          />
+          <el-tree :data="treeData" show-checkbox node-key="id"
+            style="width: 100%; border: 1px solid var(--el-border-color); border-radius: 4px; padding: 10px;" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -257,8 +247,10 @@ const treeData = [
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    
-    .el-form-item { margin-bottom: 0; }
+
+    .el-form-item {
+      margin-bottom: 0;
+    }
   }
 
   .table-wrapper {
