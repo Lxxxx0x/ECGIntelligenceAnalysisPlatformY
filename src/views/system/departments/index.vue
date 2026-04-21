@@ -122,7 +122,7 @@ const handleEdit = async (row) => {
   dialogTitle.value = '编辑科室';
   try {
     const res = await apiDepartmentDetail(row.deptId);
-    const data = res.data.records || res || {};
+    const data = res.data?.data || res.data || res || {};
     Object.assign(form, {
       deptId: data.deptId,
       deptName: data.deptName,
@@ -173,8 +173,10 @@ const handleDelete = (row) => {
           getList();
           getDeptTree();
         }).catch(() => { });
+      } else if (error && (error.code === 1000 || (error.data && error.data.code === 1000))) {
+        ElMessage.error(error.message || (error.data && error.data.message) || '删除失败');
       } else {
-        ElMessage.error('删除失败');
+        ElMessage.error(error?.message || error?.data?.message || '删除失败');
       }
     }
   }).catch(() => { });

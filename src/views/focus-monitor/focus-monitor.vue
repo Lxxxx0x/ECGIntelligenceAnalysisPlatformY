@@ -1,62 +1,122 @@
 <script setup>
-import { ref, onMounted, onUnmounted,   } from 'vue'
-import { Aim, Timer, TrendCharts, Bell, } from '@element-plus/icons-vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { Aim, Timer, TrendCharts, Bell } from '@element-plus/icons-vue'
+import { apiKeyMonitorList, apiMonitorStatistics, apiCancelKeyMonitor, apiWardDistribution } from '@/apis/realtime'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 // Top Stats Data
 const stats = ref([
-    { id: 1, title: '今日采集', value: 45, unit: '例', icon: Aim, colorClass: 'text-blue', bgClass: 'bg-blue' },
-    { id: 2, title: '待分析', value: 8, unit: '例', icon: Timer, colorClass: 'text-orange', bgClass: 'bg-orange' },
-    { id: 3, title: '待审核', value: 12, unit: '例', icon: TrendCharts, colorClass: 'text-purple', bgClass: 'bg-purple' },
-    { id: 4, title: '预警数', value: 11, unit: '条', icon: Bell, colorClass: 'text-red', bgClass: 'bg-red' }
+    { id: 1, title: '今日采集', value: 0, unit: '例', icon: Aim, colorClass: 'text-blue', bgClass: 'bg-blue' },
+    { id: 2, title: '待分析', value: 0, unit: '例', icon: Timer, colorClass: 'text-orange', bgClass: 'bg-orange' },
+    { id: 3, title: '待审核', value: 0, unit: '例', icon: TrendCharts, colorClass: 'text-purple', bgClass: 'bg-purple' },
+    { id: 4, title: '预警数', value: 0, unit: '条', icon: Bell, colorClass: 'text-red', bgClass: 'bg-red' }
 ])
 
 // Real-time Patient Dashboard Data
-const patients = ref([
-    { id: 1, name: '张三', ward: '心血管内科一区', bed: '01床', hr: 73, status: 'normal', time: '15:18:57' },
-    { id: 2, name: '李四', ward: '心血管内科二区', bed: '02床', hr: 87, status: 'normal', time: '15:18:57' },
-    { id: 3, name: '王五', ward: '神经内科一区', bed: '15床', hr: 107, status: 'warning', time: '15:18:57' },
-    { id: 4, name: '赵六', ward: '老年病科', bed: '28床', hr: 51, status: 'warning', time: '15:18:57' },
-    { id: 5, name: '孙七', ward: '心血管内科一区', bed: '05床', hr: 78, status: 'normal', time: '15:18:57' },
-    { id: 6, name: '周八', ward: '内分泌科', bed: '09床', hr: 68, status: 'normal', time: '15:18:57' },
-    { id: 7, name: '吴九', ward: 'ICU', bed: '01床', hr: 92, status: 'normal', time: '15:18:57' },
-    { id: 8, name: '郑十', ward: '居家监护', bed: '-床', hr: 88, status: 'normal', time: '15:18:57' },
-])
+const patients = ref([])
 
 // Department Stats Data
-const deptStats = ref([
-    { name: '心血管内科', value: 456, percentage: 85 },
-    { name: '神经内科', value: 234, percentage: 45 },
-    { name: '老年病科', value: 189, percentage: 36 },
-    { name: '内分泌科', value: 156, percentage: 28 },
-    { name: '其他', value: 221, percentage: 40 },
-])
+const deptStats = ref([])
 
+// Fetch Stats
+const fetchStats = async () => {
+    try {
+        const res = await apiMonitorStatistics()
+        const resData = res.data || res;
+        const data = resData.data || resData;
 
+        if (data) {
+            stats.value[0].value = data.todayCollect || 0;
+            stats.value[1].value = data.pendingAnalyse || 0;
+            stats.value[2].value = data.pendingAudit || 0;
+            stats.value[3].value = data.alertTotal || 0;
+        }
+    } catch (error) {
+        console.error('获取统计数据失败:', error)
+    }
+}
+
+// Fetch Key Monitors
+const fetchKeyMonitors = async () => {
+    try {
+        const res = await apiKeyMonitorList()
+        const resData = res.data || res;
+        const data = resData.data || resData;
+
+        if (data && data.list) {
+            patients.value = data.list.map(p => {
+                const parts = p.wardBed ? p.wardBed.split(' | ') : ['', ''];
+                return {
+                    id: p.patientId,
+                    name: p.patientName,
+                    ward: parts[0] || '',
+                    bed: parts[1] || '',
+                    hr: p.heartRate,
+                    status: p.status === '预警' ? 'warning' : 'normal',
+                    statusText: p.status,
+                    time: p.updateTime,
+                    actionPermissions: p.actionPermissions || []
+                }
+            })
+        }
+    } catch (error) {
+        console.error('获取重点监护列表失败:', error)
+    }
+}
+
+// Fetch Dept Stats
+const fetchDeptStats = async () => {
+    try {
+        const res = await apiWardDistribution()
+        const resData = res.data || res;
+        const data = resData.data || resData;
+
+        if (data && data.dataList) {
+            const total = data.dataList.reduce((sum, item) => sum + item.patientCount, 0);
+            deptStats.value = data.dataList.map(item => ({
+                name: item.wardName,
+                value: item.patientCount,
+                percentage: total === 0 ? 0 : Math.round((item.patientCount / total) * 100)
+            }))
+        }
+    } catch (error) {
+        console.error('获取科室分布失败:', error)
+    }
+}
+
+// Handle Cancel Focus
+const handleCancelFocus = async (patient) => {
+    try {
+        await ElMessageBox.confirm(`确认解除 ${patient.name} 的重点监护吗？`, '提示', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+        })
+        await apiCancelKeyMonitor(patient.id)
+        ElMessage.success(`已解除 ${patient.name} 的重点监护`)
+        // 刷新列表与统计等数据
+        fetchKeyMonitors()
+        fetchStats()
+        fetchDeptStats()
+    } catch (error) {
+        if (error !== 'cancel') {
+            console.error('解除重点监护失败:', error)
+            ElMessage.error(`解除 ${patient.name} 重点监护失败`)
+        }
+    }
+}
 
 // Simulate real-time updates
 let intervalId;
 onMounted(() => {
+    fetchStats()
+    fetchKeyMonitors()
+    fetchDeptStats()
     intervalId = setInterval(() => {
-        // Randomly update HR and time for 2 random patients
-        const now = new Date()
-        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
-
-        patients.value.forEach(p => {
-            if (Math.random() > 0.7) {
-                // Vary HR slightly
-                let change = Math.floor(Math.random() * 5) - 2;
-                p.hr = Math.max(40, Math.min(200, p.hr + change));
-
-                // Auto status shift based on mock thresholds
-                if (p.hr > 100 || p.hr < 55) {
-                    p.status = 'warning'
-                } else {
-                    p.status = 'normal'
-                }
-            }
-            p.time = timeStr;
-        })
-    }, 3000);
+        fetchStats()
+        fetchKeyMonitors()
+        fetchDeptStats()
+    }, 5000); // 调整为5秒一刷
 })
 
 onUnmounted(() => {
@@ -99,22 +159,24 @@ onUnmounted(() => {
                     </div>
                 </div>
 
-                <div class="patient-grid">
+                <div v-if="patients.length > 0" class="patient-grid">
                     <!-- Patient Cards -->
-                    <div v-for="patient in patients.filter(p => p.status === 'warning' || Math.random() > 0.5).slice(0, 4)"
-                        :key="patient.id" class="patient-card"
+                    <div v-for="patient in patients" :key="patient.id" class="patient-card"
                         :class="patient.status === 'warning' ? 'is-warning' : 'is-normal'">
                         <!-- Card Header -->
                         <div class="p-header">
                             <span class="p-name">{{ patient.name }}</span>
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <el-button size="small" type="danger" link>解除重点监护</el-button>
-                                <span class="p-tag">{{ patient.status === 'warning' ? '高危' : '正常' }}</span>
+                                <el-button v-if="patient.actionPermissions.includes('monitor:opt:cancelKey')"
+                                    size="small" type="danger" link
+                                    @click.stop="handleCancelFocus(patient)">解除重点监护</el-button>
+                                <span class="p-tag">{{ patient.statusText }}</span>
                             </div>
                         </div>
                         <!-- Card Meta -->
                         <div class="p-meta">
-                            {{ patient.ward }} <span class="divider">|</span> {{ patient.bed }}
+                            {{ patient.ward }} <template v-if="patient.bed"><span class="divider">|</span> {{
+                                patient.bed }}</template>
                         </div>
                         <!-- HR Display -->
                         <div class="p-hr-box">
@@ -133,6 +195,11 @@ onUnmounted(() => {
                             <span class="update-time">{{ patient.time }}</span>
                         </div>
                     </div>
+                </div>
+
+                <!-- Empty State -->
+                <div v-else class="empty-state">
+                    <el-empty description="暂无重点监护患者" />
                 </div>
             </div>
 
@@ -370,6 +437,14 @@ onUnmounted(() => {
     &::-webkit-scrollbar-track {
         background: transparent;
     }
+}
+
+.empty-state {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    flex: 1;
 }
 
 .patient-card {

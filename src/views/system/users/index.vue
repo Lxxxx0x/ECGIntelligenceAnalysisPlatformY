@@ -278,7 +278,7 @@ const submitForm = () => {
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="form.status">
             <el-radio v-for="item in dicts.statusOptions.filter(opt => opt.value !== '')" :key="item.value"
-              :label="item.value">{{ item.label }}</el-radio>
+              :label="Number(item.value)" :value="Number(item.value)">{{ item.label }}</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>

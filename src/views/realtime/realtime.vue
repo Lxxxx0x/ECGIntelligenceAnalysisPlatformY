@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { Aim, Timer, TrendCharts, Bell } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { apiMonitorStatistics, apiMonitorPatients, apiWardDistribution, apiMonitorPatientDetail } from '@/apis/realtime'
+import { apiMonitorStatistics, apiMonitorPatients, apiWardDistribution, apiMonitorPatientDetail, apiAddKeyMonitor } from '@/apis/realtime'
 
 // Top Stats Data
 const stats = ref([
@@ -28,8 +28,17 @@ const filteredPatients = computed(() => {
     return patients.value
 })
 
-const handleAddFocus = (patient) => {
-    ElMessage.success(`已将 ${patient.name} 加入重点监护`)
+const handleAddFocus = async (patient) => {
+    try {
+        await apiAddKeyMonitor({
+            patientId: patient.id,
+            monitorType: '床旁重点监护'
+        })
+        ElMessage.success(`已将 ${patient.name} 加入重点监护`)
+    } catch (error) {
+        console.error('加入重点监护失败:', error)
+        ElMessage.error(`加入 ${patient.name} 重点监护失败`)
+    }
 }
 
 // Fetch Stats
@@ -238,38 +247,47 @@ onUnmounted(() => {
                     <el-descriptions-item label="住院号">{{ patientDetail.inpatientNo }}</el-descriptions-item>
                     <el-descriptions-item label="病区">{{ patientDetail.wardName }}</el-descriptions-item>
                     <el-descriptions-item label="床位/关联病床">{{ patientDetail.wardBed }}</el-descriptions-item>
-                    <el-descriptions-item label="主要诊断" :span="2">{{ patientDetail.primaryDiagnosis }}</el-descriptions-item>
+                    <el-descriptions-item label="主要诊断" :span="2">{{ patientDetail.primaryDiagnosis
+                        }}</el-descriptions-item>
                     <el-descriptions-item label="当前心率">
-                        <span :class="{'text-red': patientDetail.currentHeartRate > 100 || patientDetail.currentHeartRate < 60, 'font-bold': true}">{{ patientDetail.currentHeartRate }} bpm</span>
+                        <span
+                            :class="{ 'text-red': patientDetail.currentHeartRate > 100 || patientDetail.currentHeartRate < 60, 'font-bold': true }">{{
+                            patientDetail.currentHeartRate }} bpm</span>
                     </el-descriptions-item>
                     <el-descriptions-item label="监护状态">
                         <el-tag :type="patientDetail.monitorStatus === 2 ? 'danger' : 'success'" size="small">
-                            {{ patientDetail.monitorStatusText }} {{ patientDetail.warningLevelText ? `(${patientDetail.warningLevelText})` : '' }}
+                            {{ patientDetail.monitorStatusText }} {{ patientDetail.warningLevelText ?
+                                `(${patientDetail.warningLevelText})` : '' }}
                         </el-tag>
                     </el-descriptions-item>
-                    <el-descriptions-item label="更新时间">{{ patientDetail.updateTime?.replace('T', ' ') }}</el-descriptions-item>
+                    <el-descriptions-item label="更新时间">{{ patientDetail.updateTime?.replace('T', ' ')
+                        }}</el-descriptions-item>
                 </el-descriptions>
 
-                <div v-if="patientDetail.continuousRecords && patientDetail.continuousRecords.length > 0" style="margin-top: 20px;">
+                <div v-if="patientDetail.continuousRecords && patientDetail.continuousRecords.length > 0"
+                    style="margin-top: 20px;">
                     <div style="font-weight: 600; margin-bottom: 10px; color: #1e293b;">连续监控记录</div>
                     <el-table :data="patientDetail.continuousRecords" border size="small" style="width: 100%">
                         <el-table-column prop="ecgNo" label="记录编号" width="130" show-overflow-tooltip />
                         <el-table-column prop="deviceName" label="设备名称" width="130" show-overflow-tooltip />
                         <el-table-column label="采集时间" width="160">
                             <template #default="{ row }">
-                                {{ row.collectionStartTime?.split('T')[1] }} - {{ row.collectionEndTime?.split('T')[1] }}
+                                {{ row.collectionStartTime?.split('T')[1] }} - {{ row.collectionEndTime?.split('T')[1]
+                                }}
                             </template>
                         </el-table-column>
                         <el-table-column label="AI结论" min-width="150" show-overflow-tooltip>
                             <template #default="{ row }">
-                                <span :class="{'text-red': row.aiConclusionShort?.includes('风险')}">{{ row.aiConclusionShort }}</span>
+                                <span :class="{ 'text-red': row.aiConclusionShort?.includes('风险') }">{{
+                                    row.aiConclusionShort }}</span>
                             </template>
                         </el-table-column>
                         <el-table-column prop="displayStatusText" label="状态" width="80" align="center" />
                     </el-table>
                 </div>
 
-                <div v-if="patientDetail.warningHistory && patientDetail.warningHistory.length > 0" style="margin-top: 20px;">
+                <div v-if="patientDetail.warningHistory && patientDetail.warningHistory.length > 0"
+                    style="margin-top: 20px;">
                     <div style="font-weight: 600; margin-bottom: 10px; color: #ef4444;">历史预警记录</div>
                     <el-table :data="patientDetail.warningHistory" border size="small" style="width: 100%">
                         <el-table-column label="预警时间" width="150">

@@ -417,10 +417,23 @@ const handleAdd = () => {
 
 const handleEdit = (row) => {
     isEdit.value = true
+
+    let deviceStatusValue = row.deviceStatus;
+    if (typeof deviceStatusValue === 'string') {
+        const textToMap = {
+            '正常': 1,
+            '维修': 2,
+            '异常': 2, // 将异常也映射到维修/错误状态
+            '停用': 3,
+            '离线': 4
+        };
+        deviceStatusValue = textToMap[deviceStatusValue] || 1;
+    }
+
     Object.assign(formData, {
         qcId: row.qcId,
         deptId: row.deptId || '',
-        deviceStatus: row.deviceStatus,
+        deviceStatus: deviceStatusValue,
         testResult: row.testResult,
         remark: row.remark
     })

@@ -33,3 +33,27 @@ export function apiAiDiagnosisDetail(diagnosisId) {
     method: "get",
   });
 }
+
+// ai引擎运行状态
+export function apiAiDiagnosisEngineStatus() {
+  return request({
+    url: "/analysis/ai-diagnosis/dashboard/engine-status",
+    method: "get",
+  });
+}
+
+// 分析趋势
+export function apiAiDiagnosisWarningTrend() {
+  return request({
+    url: "/analysis/ai-diagnosis/dashboard/warning-trend",
+    method: "get",
+  });
+}
+
+// 饼图
+export function apiAiDiagnosisAbnormalTypeRatio() {
+  return request({
+    url: "/analysis/ai-diagnosis/dashboard/abnormal-type-ratio",
+    method: "get",
+  });
+}

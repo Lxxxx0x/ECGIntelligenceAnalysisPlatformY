@@ -1,6 +1,8 @@
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, onMounted, onUnmounted, nextTick, watch, computed } from "vue";
 import * as echarts from "echarts";
+import { apiDashboardCoreMetrics, apiWarningLevelDistribution, apiWarningTypeWardTop, apiWarningTrend7d, apiPendingWarningsPage, apiLatestEcgPage, apiWarningDetail, apiIncludeWarning } from "@/apis/workbench";
+import { ElMessage } from "element-plus";
 
 defineOptions({
     name: "WorkbenchIndex",
@@ -12,38 +14,111 @@ const getPrimaryColor = () => {
 
 // 顶部时间筛选
 const dateRange = ref([]);
-const activeDateBtn = ref("今天");
-const dateBtns = ["今天", "本周", "本月", "本年"];
+const activeDateBtn = ref("本月");
+const dateBtns = ["今天", "本周", "本月", "本年", "自定义"];
+
+// 计算时间范围
+const getQueryParams = () => {
+    const now = new Date();
+    const format = (d, isEnd) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day} ${isEnd ? '23:59:59' : '00:00:00'}`;
+    };
+
+    let startObj = new Date(now);
+    let endObj = new Date(now);
+
+    if (activeDateBtn.value === "本周") {
+        const day = now.getDay() || 7;
+        startObj.setDate(now.getDate() - day + 1);
+        endObj.setDate(startObj.getDate() + 6);
+    } else if (activeDateBtn.value === "本月") {
+        startObj = new Date(now.getFullYear(), now.getMonth(), 1);
+        endObj = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    } else if (activeDateBtn.value === "本年") {
+        startObj = new Date(now.getFullYear(), 0, 1);
+        endObj = new Date(now.getFullYear(), 11, 31);
+    } else if (activeDateBtn.value === "自定义" && dateRange.value?.length === 2) {
+        startObj = new Date(dateRange.value[0]);
+        endObj = new Date(dateRange.value[1]);
+    }
+
+    return {
+        startTime: format(startObj, false),
+        endTime: format(endObj, true)
+    };
+};
+
+const displayDateStr = computed(() => {
+    const { startTime, endTime } = getQueryParams();
+    if (startTime && endTime) {
+        return `${startTime.split(' ')[0]} 至 ${endTime.split(' ')[0]}`;
+    }
+    return '';
+});
+
+// 监听时间变化重新加载数据
+watch([activeDateBtn, dateRange], () => {
+    if (activeDateBtn.value === '自定义' && (!dateRange.value || dateRange.value.length !== 2)) {
+        return; // 自定义未选择完整日期时不拉取
+    }
+    loadData();
+});
 
 // 统计数据
-const stats = [
-    { label: "心电测量次数", value: 2453, unit: "次" },
-    { label: "待分析记录", value: 194, unit: "条" },
-    { label: "待审核报告", value: 28, unit: "份" },
-    { label: "异常预警", value: 11, unit: "条" },
-    { label: "预警总数", value: 564, unit: "条" },
-    { label: "报告总数", value: 118, unit: "条" },
-    { label: "AI诊断准确率", value: 92.8, unit: "%" },
-];
+const stats = ref([
+    { label: "心电测量次数", value: 0, unit: "次", key: "ecgTotal" },
+    { label: "待分析记录", value: 0, unit: "条", key: "pendingAnalyse" },
+    { label: "待审核报告", value: 0, unit: "份", key: "pendingAudit" },
+    { label: "异常预警", value: 0, unit: "条", key: "abnormalWarning" },
+    { label: "预警总数", value: 0, unit: "条", key: "warningTotal" },
+    { label: "报告总数", value: 0, unit: "条", key: "reportTotal" },
+    { label: "AI诊断准确率", value: 0, unit: "%", key: "aiAccuracy" },
+]);
 
 const activeBottomTab = ref("待处理预警");
 
 // 待处理预警数据
-const warningTableData = [
-    { time: "2026-04-11 11:33:00", patientInfo: "赵六/72岁/女", ward: "老年病科", type: "心动过缓", level: "中危", status: "待处理" },
-    { time: "2026-04-11 08:32:00", patientInfo: "张三/45岁/男", ward: "心血管内 科一区", type: "ST段异常", level: "中危", status: "待处理" },
-    { time: "2026-04-11 10:35:00", patientInfo: "林十四/55岁/女", ward: "肾内科", type: "室性早搏增多", level: "高危", status: "待处理" },
-    { time: "2026-04-11 14:35:00", patientInfo: "陈十二/78岁/男", ward: "骨科", type: "ST-T改变", level: "中危", status: "待处理" },
-    { time: "2026-04-11 16:05:00", patientInfo: "刘十一/32岁/女", ward: "产科", type: "窦性心动过速", level: "中危", status: "待处理" }
-];
+const warningTableData = ref([]);
 
 // 最新心电记录数据
-const latestRecordData = [
-    { time: "2026-04-11 11:45:00", patientInfo: "王五/60岁/男", ward: "心血管内科二区", device: "ECG-001", aiResult: "室性早搏", status: "待审核" },
-    { time: "2026-04-11 11:30:00", patientInfo: "李莹/45岁/女", ward: "急诊病房", device: "ECG-023", aiResult: "窦性心律，正常心电图", status: "已审核" },
-    { time: "2026-04-11 11:15:00", patientInfo: "孙齐/52岁/男", ward: "神经内科", device: "ECG-015", aiResult: "房颤", status: "危急值" },
-    { time: "2026-04-11 10:50:00", patientInfo: "周八/68岁/女", ward: "呼吸内科", device: "ECG-102", aiResult: "ST段改变", status: "待审核" }
-];
+const latestRecordData = ref([]);
+
+// "查看全部" 弹窗
+const showAllDialogVisible = ref(false);
+const dialogTitle = ref("");
+const fullTableData = ref([]);
+
+// "查看详情" 弹窗
+const detailDialogVisible = ref(false);
+const currentDetail = ref({});
+const handleDetail = async (row) => {
+    try {
+        const id = row.alertId || row.warningId || row.id;
+        const res = await apiWarningDetail(id);
+        currentDetail.value = res.data?.data || res.data || {};
+        detailDialogVisible.value = true;
+    } catch (err) {
+        console.error("加载预警详情失败", err);
+    }
+};
+
+// 纳入预警
+const handleInclude = async (row) => {
+    try {
+        await apiIncludeWarning(row.alertId || row.warningId);
+        ElMessage.success("纳入成功");
+        loadData(); // 重新加载数据
+        if (showAllDialogVisible.value && activeBottomTab.value === "待处理预警") {
+            handleViewAll(); // 如果在查看全部弹窗中，刷新全量列表
+        }
+    } catch (err) {
+        console.error("纳入预警失败", err);
+        ElMessage.error("纳入失败");
+    }
+};
 
 // ECharts 图表容器引用
 const lineChartRef = ref(null);
@@ -213,9 +288,112 @@ const handleResize = () => {
     if (warningTypeChart) warningTypeChart.resize();
 };
 
+const loadData = async () => {
+    try {
+        const params = getQueryParams();
+        const metricsRes = await apiDashboardCoreMetrics(params);
+        const metricsData = metricsRes.data?.data || metricsRes.data;
+        if (metricsData) {
+            stats.value.forEach(item => {
+                if (item.key && metricsData[item.key] !== undefined) {
+                    item.value = metricsData[item.key];
+                }
+            })
+        }
+
+        const levelRes = await apiWarningLevelDistribution(params);
+        const levelData = levelRes.data?.data || levelRes.data;
+        if (levelData && alarmLevelChart) {
+            alarmLevelChart.setOption({
+                dataset: {
+                    source: [
+                        ['score', 'amount', 'product'],
+                        [90, levelData.highRiskCount || 0, '高危'],
+                        [50, levelData.middleRiskCount || 0, '中危'],
+                        [10, levelData.lowRiskCount || 0, '低危']
+                    ]
+                }
+            });
+        }
+
+        const typeWardRes = await apiWarningTypeWardTop(params);
+        const typeWardData = typeWardRes.data?.data || typeWardRes.data;
+        if (typeWardData) {
+            if (warningTypeChart && typeWardData.warningTypeStats) {
+                const legendData = typeWardData.warningTypeStats.map(i => i.warningType);
+                const seriesData = typeWardData.warningTypeStats.map(i => ({ value: i.count, name: i.warningType }));
+                warningTypeChart.setOption({
+                    legend: { data: legendData },
+                    series: [{ data: seriesData }]
+                });
+            }
+            if (barChart && typeWardData.wardTopStats) {
+                const names = typeWardData.wardTopStats.map(i => i.wardName).reverse();
+                const counts = typeWardData.wardTopStats.map(i => i.warningCount).reverse();
+                barChart.setOption({
+                    yAxis: { data: names },
+                    series: [{ data: counts }]
+                });
+            }
+        }
+
+        const trendRes = await apiWarningTrend7d();
+        const trendData = trendRes.data?.data || trendRes.data;
+        if (trendData && lineChart) {
+            lineChart.setOption({
+                xAxis: { data: trendData.dateList || [] },
+                series: [{ data: trendData.warningCountList || [] }]
+            });
+        }
+
+        // 加载待处理预警数据 (默认展示5条)
+        const warnRes = await apiPendingWarningsPage({ ...params, pageNum: 1, pageSize: 5 });
+        const warnData = warnRes.data?.data || warnRes.data;
+        if (warnData && warnData.list) {
+            warningTableData.value = warnData.list;
+        }
+
+        // 加载最新心电记录数据 (默认展示5条)
+        const ecgRes = await apiLatestEcgPage({ ...params, pageNum: 1, pageSize: 5 });
+        const ecgData = ecgRes.data?.data || ecgRes.data;
+        if (ecgData && ecgData.list) {
+            latestRecordData.value = ecgData.list;
+        }
+    } catch (err) {
+        console.error("加载大屏数据失败", err);
+    }
+}
+
+const handleViewAll = async () => {
+    dialogTitle.value = activeBottomTab.value;
+    fullTableData.value = [];
+    showAllDialogVisible.value = true;
+
+    // 打开弹框时加载全量数据 (最多 200 条)
+    const params = getQueryParams();
+    try {
+        if (activeBottomTab.value === "待处理预警") {
+            const res = await apiPendingWarningsPage({ ...params, pageNum: 1, pageSize: 200 });
+            const data = res.data?.data || res.data;
+            if (data && data.list) {
+                fullTableData.value = data.list;
+            }
+        } else {
+            const res = await apiLatestEcgPage({ ...params, pageNum: 1, pageSize: 200 });
+            const data = res.data?.data || res.data;
+            if (data && data.list) {
+                fullTableData.value = data.list;
+            }
+        }
+    } catch (err) {
+        console.error("加载全部数据失败", err);
+    }
+};
+
 onMounted(() => {
     nextTick(() => {
         initCharts();
+        loadData();
     });
     window.addEventListener("theme-changed", handleThemeChange);
     window.addEventListener("resize", handleResize);
@@ -248,7 +426,7 @@ onUnmounted(() => {
                     start-placeholder="开始日期" end-placeholder="结束日期" size="small"
                     style="width: 240px; margin-left: 12px;" />
                 <div v-else class="date-display">
-                    2026-04-14 至 2026-04-14
+                    {{ displayDateStr }}
                 </div>
             </div>
 
@@ -301,8 +479,8 @@ onUnmounted(() => {
                     <div class="tab-item" :class="{ active: activeBottomTab === '最新心电记录' }"
                         @click="activeBottomTab = '最新心电记录'">最新心电记录</div>
                 </div>
-                <el-button link type="primary" style="font-size: 14px; margin-bottom: 10px;">查看全部 <span
-                        style="margin-left: 4px; font-size: 16px;">&rarr;</span></el-button>
+                <el-button link type="primary" style="font-size: 14px; margin-bottom: 10px;" @click="handleViewAll">查看全部
+                    <span style="margin-left: 4px; font-size: 16px;">&rarr;</span></el-button>
             </div>
 
             <!-- 待处理预警表格 -->
@@ -311,8 +489,8 @@ onUnmounted(() => {
                 <el-table-column label="预警时间" width="180">
                     <template #default="{ row }">
                         <div style="line-height: 1.5; color: #606266;">
-                            <div>{{ row.time.split(' ')[0] }}</div>
-                            <div>{{ row.time.split(' ')[1] }}</div>
+                            <div>{{ row.warningTime ? row.warningTime.split(' ')[0] : '' }}</div>
+                            <div>{{ row.warningTime ? row.warningTime.split(' ')[1] : '' }}</div>
                         </div>
                     </template>
                 </el-table-column>
@@ -320,13 +498,13 @@ onUnmounted(() => {
                 <el-table-column prop="ward" label="病区" width="200" />
                 <el-table-column label="临床指标类型" min-width="160">
                     <template #default="{ row }">
-                        <span style="color: #409eff; cursor: pointer;">{{ row.type }}</span>
+                        <span style="color: #409eff; cursor: pointer;">{{ row.clinicalIndicator }}</span>
                     </template>
                 </el-table-column>
                 <el-table-column label="预警级别" width="120">
                     <template #default="{ row }">
-                        <el-tag :type="row.level === '高危' ? 'danger' : 'warning'" effect="plain" size="small"
-                            style="border-radius: 4px;">{{ row.level }}</el-tag>
+                        <el-tag :type="row.warningLevel === '高危' ? 'danger' : 'warning'" effect="plain" size="small"
+                            style="border-radius: 4px;">{{ row.warningLevel }}</el-tag>
                     </template>
                 </el-table-column>
                 <el-table-column label="状态" width="120">
@@ -337,9 +515,9 @@ onUnmounted(() => {
                     </template>
                 </el-table-column>
                 <el-table-column label="操作" width="160" fixed="right">
-                    <template #default>
-                        <el-button link type="primary" size="small">纳入</el-button>
-                        <el-button link type="primary" size="small">查看详情 <span
+                    <template #default="{ row }">
+                        <el-button link type="primary" size="small" @click="handleInclude(row)">纳入</el-button>
+                        <el-button link type="primary" size="small" @click="handleDetail(row)">查看详情 <span
                                 style="margin-left: 4px; font-size: 14px;">&rarr;</span></el-button>
                     </template>
                 </el-table-column>
@@ -351,23 +529,28 @@ onUnmounted(() => {
                 <el-table-column label="采集时间" width="180">
                     <template #default="{ row }">
                         <div style="line-height: 1.5; color: #606266;">
-                            <div>{{ row.time.split(' ')[0] }}</div>
-                            <div>{{ row.time.split(' ')[1] }}</div>
+                            <div>{{ row.collectStartTime ? row.collectStartTime.split(' ')[0] : '' }}</div>
+                            <div>{{ row.collectStartTime ? row.collectStartTime.split(' ')[1] : '' }}</div>
                         </div>
                     </template>
                 </el-table-column>
-                <el-table-column prop="patientInfo" label="患者信息" width="200" />
-                <el-table-column prop="ward" label="病区" width="180" />
-                <el-table-column prop="device" label="设备" width="140" />
+                <el-table-column label="患者信息" width="200">
+                    <template #default="{ row }">
+                        {{ row.patientName }}/{{ row.gender || '-' }}/{{ row.age != null ? row.age + '岁' : '-' }}
+                    </template>
+                </el-table-column>
+                <el-table-column prop="deptName" label="病区" width="180" />
+                <el-table-column prop="deviceName" label="设备" width="140" />
                 <el-table-column label="状态" width="120">
                     <template #default="{ row }">
-                        <el-tag :type="row.status === '危急值' ? 'danger' : (row.status === '已审核' ? 'success' : 'info')"
-                            effect="plain" size="small" style="border-radius: 4px;">{{ row.status }}</el-tag>
+                        <el-tag
+                            :type="row.displayStatus === 3 ? 'danger' : (row.displayStatus === 2 ? 'success' : 'info')"
+                            effect="plain" size="small" style="border-radius: 4px;">{{ row.statusText }}</el-tag>
                     </template>
                 </el-table-column>
                 <el-table-column label="AI结论" min-width="160">
                     <template #default="{ row }">
-                        <span>{{ row.aiResult }}</span>
+                        <span>{{ row.aiConclusionShort }}</span>
                     </template>
                 </el-table-column>
                 <el-table-column label="操作" width="140" fixed="right">
@@ -378,6 +561,156 @@ onUnmounted(() => {
                 </el-table-column>
             </el-table>
         </div>
+
+        <!-- 查看全部 弹窗 -->
+        <el-dialog v-model="showAllDialogVisible" :title="dialogTitle" width="1000px" destroy-on-close>
+            <div style="min-height: 400px; max-height: 60vh; overflow-y: auto;">
+                <template v-if="dialogTitle === '待处理预警'">
+                    <el-table :data="fullTableData" style="width: 100%; height: auto;"
+                        :header-cell-style="{ background: '#f5f7fa', color: '#333', fontWeight: 'bold' }">
+                        <el-table-column label="预警时间" width="180">
+                            <template #default="{ row }">
+                                <div style="line-height: 1.5; color: #606266;">
+                                    <div>{{ row.warningTime ? row.warningTime.split(' ')[0] : '' }}</div>
+                                    <div>{{ row.warningTime ? row.warningTime.split(' ')[1] : '' }}</div>
+                                </div>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="patientInfo" label="患者信息" width="200" />
+                        <el-table-column prop="ward" label="病区" width="200" />
+                        <el-table-column label="临床指标类型" min-width="160">
+                            <template #default="{ row }">
+                                <span style="color: #409eff; cursor: pointer;">{{ row.clinicalIndicator }}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="预警级别" width="120">
+                            <template #default="{ row }">
+                                <el-tag :type="row.warningLevel === '高危' ? 'danger' : 'warning'" effect="plain"
+                                    size="small" style="border-radius: 4px;">{{ row.warningLevel }}</el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="状态" width="120">
+                            <template #default="{ row }">
+                                <el-tag type="warning" effect="plain" size="small"
+                                    style="border-radius: 4px; color: #e6a23c; border-color: #fdf6ec; background-color: #fdf6ec;">{{
+                                        row.status }}</el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="操作" width="160" fixed="right">
+                            <template #default="{ row }">
+                                <el-button link type="primary" size="small" @click="handleInclude(row)">纳入</el-button>
+                                <el-button link type="primary" size="small" @click="handleDetail(row)">查看详情 <span
+                                        style="margin-left: 4px; font-size: 14px;">&rarr;</span></el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </template>
+                <template v-else>
+                    <el-table :data="fullTableData" style="width: 100%; height: auto;"
+                        :header-cell-style="{ background: '#f5f7fa', color: '#333', fontWeight: 'bold' }">
+                        <el-table-column label="采集时间" width="180">
+                            <template #default="{ row }">
+                                <div style="line-height: 1.5; color: #606266;">
+                                    <div>{{ row.collectStartTime ? row.collectStartTime.split(' ')[0] : '' }}</div>
+                                    <div>{{ row.collectStartTime ? row.collectStartTime.split(' ')[1] : '' }}</div>
+                                </div>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="患者信息" width="200">
+                            <template #default="{ row }">
+                                {{ row.patientName }}/{{ row.gender || '-' }}/{{ row.age != null ? row.age + '岁' : '-'
+                                }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="deptName" label="病区" width="180" />
+                        <el-table-column prop="deviceName" label="设备" width="140" />
+                        <el-table-column label="状态" width="120">
+                            <template #default="{ row }">
+                                <el-tag
+                                    :type="row.displayStatus === 3 ? 'danger' : (row.displayStatus === 2 ? 'success' : 'info')"
+                                    effect="plain" size="small" style="border-radius: 4px;">{{ row.statusText
+                                    }}</el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="AI结论" min-width="160">
+                            <template #default="{ row }">
+                                <span>{{ row.aiConclusionShort }}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="操作" width="140" fixed="right">
+                            <template #default>
+                                <el-button link type="primary" size="small">查看报告 <span
+                                        style="margin-left: 4px; font-size: 14px;">&rarr;</span></el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </template>
+            </div>
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="showAllDialogVisible = false">关闭</el-button>
+                </div>
+            </template>
+        </el-dialog>
+
+        <!-- 查看详情 弹窗 -->
+        <el-dialog v-model="detailDialogVisible" title="预警详情" width="900px" destroy-on-close>
+            <el-descriptions :column="2" border size="small">
+                <!-- 预警信息 -->
+                <el-descriptions-item label="预警ID">{{ currentDetail.alertId }}</el-descriptions-item>
+                <el-descriptions-item label="预警时间">{{ currentDetail.warningTime }}</el-descriptions-item>
+                <el-descriptions-item label="预警等级">{{ currentDetail.alertLevelText }}</el-descriptions-item>
+                <el-descriptions-item label="处理状态">{{ currentDetail.alertStatusText }}</el-descriptions-item>
+                <el-descriptions-item label="预警类型">{{ currentDetail.warningType }}</el-descriptions-item>
+                <el-descriptions-item label="异常类型">{{ currentDetail.abnormalType }}</el-descriptions-item>
+                <el-descriptions-item label="预警描述" :span="2">{{ currentDetail.warningDesc }}</el-descriptions-item>
+                <el-descriptions-item label="LIS辅助提示" :span="2">{{ currentDetail.lisHint }}</el-descriptions-item>
+                
+                <!-- 患者信息 -->
+                <el-descriptions-item label="患者姓名">{{ currentDetail.patientName }}</el-descriptions-item>
+                <el-descriptions-item label="患者ID">{{ currentDetail.patientId }}</el-descriptions-item>
+                <el-descriptions-item label="年龄">{{ currentDetail.age }}</el-descriptions-item>
+                <el-descriptions-item label="性别">{{ currentDetail.genderText }}</el-descriptions-item>
+                <el-descriptions-item label="住院号">{{ currentDetail.inpatientNo }}</el-descriptions-item>
+                <el-descriptions-item label="病区">{{ currentDetail.wardName }}</el-descriptions-item>
+                <el-descriptions-item label="床号">{{ currentDetail.bedNo }}</el-descriptions-item>
+                <el-descriptions-item label="联系电话">{{ currentDetail.phone }}</el-descriptions-item>
+                <el-descriptions-item label="主要诊断" :span="2">{{ currentDetail.primaryDiagnosis }}</el-descriptions-item>
+                
+                <!-- 采集信息 -->
+                <el-descriptions-item label="设备名称">{{ currentDetail.deviceName }}</el-descriptions-item>
+                <el-descriptions-item label="心电图编号">{{ currentDetail.ecgNo }}</el-descriptions-item>
+                <el-descriptions-item label="导联数">{{ currentDetail.leadCount }}</el-descriptions-item>
+                <el-descriptions-item label="采样率">{{ currentDetail.samplingRate }}</el-descriptions-item>
+                <el-descriptions-item label="采集时长">{{ currentDetail.collectionDuration ? currentDetail.collectionDuration + ' 秒' : '' }}</el-descriptions-item>
+                <el-descriptions-item label="置信度">{{ currentDetail.confidence }}</el-descriptions-item>
+                <el-descriptions-item label="采集时间" :span="2">{{ currentDetail.collectionStartTime }} 至 {{ currentDetail.collectionEndTime || '正在采集' }}</el-descriptions-item>
+                
+                <!-- AI结论与指标 -->
+                <el-descriptions-item label="AI诊断编号">{{ currentDetail.diagnosisNo }}</el-descriptions-item>
+                <el-descriptions-item label="模型版本">{{ currentDetail.aiModelVersion }}</el-descriptions-item>
+                <el-descriptions-item label="AI完整结论" :span="2">{{ currentDetail.aiConclusion }}</el-descriptions-item>
+                
+                <el-descriptions-item label="心率">{{ currentDetail.heartRate }}</el-descriptions-item>
+                <el-descriptions-item label="PR间期">{{ currentDetail.prInterval }}</el-descriptions-item>
+                <el-descriptions-item label="QRS时限">{{ currentDetail.qrsDuration }}</el-descriptions-item>
+                <el-descriptions-item label="QT/QTc间期">{{ currentDetail.qtInterval }} / {{ currentDetail.qtcInterval }}</el-descriptions-item>
+                
+                <el-descriptions-item label="异常数量/级别">{{ currentDetail.abnormalCount }} / {{ currentDetail.abnormalLevelText }}</el-descriptions-item>
+                <el-descriptions-item label="AI分析状态">{{ currentDetail.analysisStatusText }}</el-descriptions-item>
+                <el-descriptions-item label="诊断完成时间" :span="2">{{ currentDetail.diagnosisTime }}</el-descriptions-item>
+                
+                <!-- 处理信息 -->
+                <el-descriptions-item label="处理人">{{ currentDetail.handleUserName }}</el-descriptions-item>
+                <el-descriptions-item label="处理时间">{{ currentDetail.handleTime }}</el-descriptions-item>
+                <el-descriptions-item label="处理意见" :span="2">{{ currentDetail.handleRemark }}</el-descriptions-item>
+            </el-descriptions>
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="detailDialogVisible = false">关闭</el-button>
+                </div>
+            </template>
+        </el-dialog>
     </div>
 </template>
 

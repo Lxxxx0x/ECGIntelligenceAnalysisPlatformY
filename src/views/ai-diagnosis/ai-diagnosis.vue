@@ -3,7 +3,11 @@
         <div class="page-header">
             <!-- <h2 class="page-title">AI诊断中心</h2> -->
             <div class="header-actions">
-                <el-tag type="success" effect="light" round>AI 引擎运行正常</el-tag>
+                <el-tag
+                    :type="aiStatus.engineStatus === 'RUNNING' ? 'success' : (aiStatus.engineStatus === 'PENDING' ? 'warning' : 'info')"
+                    effect="light" round>
+                    {{ aiStatus.engineStatusText }} {{ aiStatus.engineVersion ? `(v${aiStatus.engineVersion})` : '' }}
+                </el-tag>
                 <span class="last-update">最后更新: {{ currentTime }}</span>
             </div>
         </div>
@@ -20,7 +24,7 @@
                     <div class="stat-info">
                         <div class="stat-title">{{ stat.title }}</div>
                         <div class="stat-value">{{ stat.value }}<span v-if="stat.unit" class="unit">{{ stat.unit
-                        }}</span></div>
+                                }}</span></div>
                     </div>
                 </el-card>
             </el-col>
@@ -252,7 +256,7 @@
                     <el-descriptions-item label="病人ID">{{ detailData.patientId }}</el-descriptions-item>
                     <el-descriptions-item label="病人姓名">{{ detailData.patientName }}</el-descriptions-item>
                     <el-descriptions-item label="性别 / 年龄">{{ detailData.gender }} / {{ detailData.age
-                        }}岁</el-descriptions-item>
+                    }}岁</el-descriptions-item>
                     <el-descriptions-item label="住院号">{{ detailData.hospitalNo }}</el-descriptions-item>
                     <el-descriptions-item label="科室">{{ detailData.deptName }}</el-descriptions-item>
                     <el-descriptions-item label="采集时间" :span="2">{{ detailData.collectionStartTime?.replace('T', ' ') }}
@@ -264,7 +268,7 @@
                     <el-descriptions-item label="诊断编号">{{ detailData.diagnosisId }}</el-descriptions-item>
                     <el-descriptions-item label="AI版本">{{ detailData.aiVersion }}</el-descriptions-item>
                     <el-descriptions-item label="诊断时间" :span="2">{{ detailData.diagnosisTime?.replace('T', ' ')
-                        }}</el-descriptions-item>
+                    }}</el-descriptions-item>
                     <el-descriptions-item label="心率">{{ detailData.heartRate }} bpm</el-descriptions-item>
                     <el-descriptions-item label="PR间期">{{ detailData.prInterval }} ms</el-descriptions-item>
                     <el-descriptions-item label="QRS时限">{{ detailData.qrsDuration }} ms</el-descriptions-item>
@@ -277,7 +281,7 @@
                     <el-descriptions-item label="当前状态">
                         <el-tag :type="detailData.status === '已审核' ? 'success' : 'warning'" size="small">{{
                             detailData.status
-                            }}</el-tag>
+                        }}</el-tag>
                     </el-descriptions-item>
                 </el-descriptions>
 
@@ -285,11 +289,11 @@
                     v-if="detailData.status === '已审核' || detailData.auditDoctorName">
                     <el-descriptions-item label="审核医生">{{ detailData.auditDoctorName }}</el-descriptions-item>
                     <el-descriptions-item label="审核时间">{{ detailData.auditTime?.replace('T', ' ')
-                        }}</el-descriptions-item>
+                    }}</el-descriptions-item>
                     <el-descriptions-item label="医生结论" :span="2">{{ detailData.doctorConclusion
-                        }}</el-descriptions-item>
+                    }}</el-descriptions-item>
                     <el-descriptions-item label="医生建议" :span="2">{{ detailData.doctorSuggestion
-                        }}</el-descriptions-item>
+                    }}</el-descriptions-item>
                     <el-descriptions-item label="审核意见" :span="2">{{ detailData.auditOpinion }}</el-descriptions-item>
                 </el-descriptions>
 
@@ -321,7 +325,7 @@ import { reactive, ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { DataLine, Warning, TrendCharts, Coordinate, Search } from '@element-plus/icons-vue';
 import * as echarts from 'echarts';
 import { ElMessage } from 'element-plus';
-import { apiAiDiagnosisOverview, apiAiDiagnosisPage, apiAiDiagnosisDetail, apiAiDiagnosisAudit } from '@/apis/ai-diagnosis';
+import { apiAiDiagnosisPage, apiAiDiagnosisDetail, apiAiDiagnosisAudit, apiAiDiagnosisEngineStatus, apiAiDiagnosisWarningTrend, apiAiDiagnosisAbnormalTypeRatio } from '@/apis/ai-diagnosis';
 
 const currentTime = ref(new Date().toLocaleTimeString('zh-CN', { hour12: false }));
 let timer = null;
@@ -450,7 +454,8 @@ const submitReview = async () => {
             ElMessage.success(`复核完成`);
             reviewDialogVisible.value = false;
             // 刷新列表和概览数据
-            fetchOverview();
+            fetchEngineStatus();
+            fetchWarningTrend();
             fetchRecentAnomalies();
             if (allRecordsVisible.value) {
                 loadAllRecords();
@@ -464,24 +469,83 @@ const submitReview = async () => {
     }
 };
 
+const aiStatus = reactive({
+    engineStatus: 'RUNNING',
+    engineStatusText: 'AI 引擎运行正常',
+    engineVersion: 'v1.0.0',
+});
+
 const statistics = ref([
-    { title: 'AI分析总量', value: '0', unit: '份', icon: DataLine, color: '#409EFF', bgColor: '#ecf5ff', prop: 'totalCount' },
-    { title: '待审核数量', value: '0', unit: '份', icon: Warning, color: '#F56C6C', bgColor: '#fef0f0', prop: 'pendingAuditCount' },
-    { title: '已审核数量', value: '0', unit: '份', icon: TrendCharts, color: '#E6A23C', bgColor: '#fdf6ec', prop: 'auditedCount' },
-    { title: '平均置信度', value: '0', unit: '%', icon: Coordinate, color: '#67C23A', bgColor: '#f0f9eb', prop: 'avgConfidence' },
+    { title: '运行实例数', value: '0', unit: '个', icon: DataLine, color: '#409EFF', bgColor: '#ecf5ff', prop: 'runningInstanceCount' },
+    { title: '队列积压任务', value: '0', unit: '个', icon: Warning, color: '#F56C6C', bgColor: '#fef0f0', prop: 'queueBacklogCount' },
+    { title: '今日完成分析', value: '0', unit: '份', icon: TrendCharts, color: '#E6A23C', bgColor: '#fdf6ec', prop: 'todayAnalysisCount' },
+    { title: '今日平均分析耗时', value: '0', unit: '秒', icon: Coordinate, color: '#67C23A', bgColor: '#f0f9eb', prop: 'avgAnalysisSeconds' },
 ]);
 
-const fetchOverview = async () => {
+const fetchEngineStatus = async () => {
     try {
-        const res = await apiAiDiagnosisOverview({});
+        const res = await apiAiDiagnosisEngineStatus();
         const data = res.data || {};
+
+        aiStatus.engineStatus = data.engineStatus || 'RUNNING';
+        aiStatus.engineStatusText = data.engineStatusText || 'AI 引擎运行正常';
+        aiStatus.engineVersion = data.engineVersion || '';
+
         statistics.value.forEach(stat => {
             if (data[stat.prop] !== undefined) {
                 stat.value = data[stat.prop];
             }
         });
     } catch (error) {
-        console.error('获取AI诊断概览失败', error);
+        console.error('获取AI诊断引擎状态失败', error);
+    }
+};
+
+const fetchWarningTrend = async () => {
+    try {
+        const res = await apiAiDiagnosisWarningTrend();
+        const data = res.data || {};
+
+        const dateList = data.dateList || [];
+        const pendingAuditList = data.pendingAuditList || [];
+        const passList = data.passList || [];
+        const rejectList = data.rejectList || [];
+
+        if (trendChart) {
+            trendChart.setOption({
+                xAxis: {
+                    data: dateList
+                },
+                series: [
+                    { data: pendingAuditList },
+                    { data: passList },
+                    { data: rejectList }
+                ]
+            });
+        }
+    } catch (error) {
+        console.error('获取近期心电预警检出趋势失败', error);
+    }
+};
+
+const fetchAbnormalTypeRatio = async () => {
+    try {
+        const res = await apiAiDiagnosisAbnormalTypeRatio();
+        const data = res.data || [];
+        const pieData = data.map(item => ({
+            name: item.abnormalType,
+            value: item.count
+        }));
+
+        if (distChart) {
+            distChart.setOption({
+                series: [{
+                    data: pieData
+                }]
+            });
+        }
+    } catch (error) {
+        console.error('获取异常类型分布失败', error);
     }
 };
 
@@ -569,12 +633,12 @@ const initCharts = () => {
     trendChart = echarts.init(trendChartRef.value);
     const trendOption = {
         tooltip: { trigger: 'axis' },
-        legend: { data: ['总异常预警', '室性心律失常', '缺血性ST-T改变'], bottom: 0, icon: 'circle' },
+        legend: { data: ['待审核', '审核通过', '审核驳回'], bottom: 0, icon: 'circle' },
         grid: { left: '3%', right: '4%', bottom: '15%', top: '8%', containLabel: true },
         xAxis: {
             type: 'category',
             boundaryGap: false,
-            data: ['04-12', '04-13', '04-14', '04-15', '04-16', '04-17', '04-18'],
+            data: [], // 动态获取
             axisLine: { lineStyle: { color: '#e2e8f0' } },
             axisLabel: { color: '#64748b' }
         },
@@ -585,7 +649,16 @@ const initCharts = () => {
         },
         series: [
             {
-                name: '总异常预警',
+                name: '待审核',
+                type: 'line',
+                smooth: true,
+                symbol: 'none',
+                lineStyle: { width: 2 },
+                itemStyle: { color: '#fbbf24' },
+                data: []
+            },
+            {
+                name: '审核通过',
                 type: 'line',
                 smooth: true,
                 symbol: 'none',
@@ -597,25 +670,16 @@ const initCharts = () => {
                 },
                 lineStyle: { width: 3 },
                 itemStyle: { color: '#38bdf8' },
-                data: [120, 132, 101, 134, 180, 230, 210]
+                data: []
             },
             {
-                name: '室性心律失常',
+                name: '审核驳回',
                 type: 'line',
                 smooth: true,
                 symbol: 'none',
                 lineStyle: { width: 2 },
                 itemStyle: { color: '#fb7185' },
-                data: [20, 32, 21, 34, 65, 45, 30]
-            },
-            {
-                name: '缺血性ST-T改变',
-                type: 'line',
-                smooth: true,
-                symbol: 'none',
-                lineStyle: { width: 2 },
-                itemStyle: { color: '#fbbf24' },
-                data: [40, 50, 45, 60, 55, 80, 70]
+                data: []
             }
         ]
     };
@@ -647,16 +711,7 @@ const initCharts = () => {
                 itemStyle: {
                     borderRadius: 8
                 },
-                data: [
-                    { value: 40, name: '心房颤动' },
-                    { value: 38, name: '室性早搏' },
-                    { value: 32, name: 'ST-T改变' },
-                    { value: 30, name: '心动过缓' },
-                    { value: 28, name: '传导阻滞' },
-                    { value: 26, name: '室性心动过速' },
-                    { value: 22, name: '房性早搏' },
-                    { value: 18, name: '其他异常' }
-                ]
+                data: []
             }
         ]
     };
@@ -669,7 +724,7 @@ const resizeWindow = () => {
 };
 
 onMounted(() => {
-    fetchOverview();
+    fetchEngineStatus();
     fetchRecentAnomalies();
     timer = setInterval(() => {
         currentTime.value = new Date().toLocaleTimeString('zh-CN', { hour12: false });
@@ -677,6 +732,8 @@ onMounted(() => {
 
     nextTick(() => {
         initCharts();
+        fetchWarningTrend();
+        fetchAbnormalTypeRatio();
         window.addEventListener('resize', resizeWindow);
     });
 });

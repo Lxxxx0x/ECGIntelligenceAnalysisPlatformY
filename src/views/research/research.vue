@@ -3,7 +3,7 @@
         <div class="table-card">
             <!-- 搜索与筛选 -->
             <div class="filter-bar">
-                <el-input v-model="searchForms.userKeyword" placeholder="检索用户数据 (姓名/ID等)"
+                <el-input v-model="searchForms.patientKeyword" placeholder="检索用户数据 (姓名/ID等)"
                     class="filter-item search-input" clearable>
                     <template #prefix><el-icon>
                             <User />
@@ -21,11 +21,19 @@
                             <DataLine />
                         </el-icon></template>
                 </el-input>
+                <el-input v-model="searchForms.deptId" placeholder="病区ID" class="filter-item search-input-small"
+                    clearable>
+                </el-input>
+                <el-date-picker v-model="searchForms.dateRange" type="datetimerange" range-separator="至"
+                    start-placeholder="开始时间" end-placeholder="结束时间" value-format="YYYY-MM-DD HH:mm:ss"
+                    class="filter-item date-picker" clearable />
 
                 <el-button type="primary" :icon="Search" class="query-btn" @click="handleQuery">查询</el-button>
+                <el-button :icon="Refresh" @click="handleReset">重置</el-button>
                 <el-button type="success" :icon="Download" @click="handleExport"
                     :disabled="selectedRows.length === 0">导出选中记录
                     (自动脱敏)</el-button>
+                <el-button type="warning" :icon="Download" @click="handleExportAll">导出全部记录</el-button>
             </div>
 
             <div class="alert-info">
@@ -40,13 +48,16 @@
                     :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: 'bold' }">
                     <el-table-column type="selection" width="55" align="center" />
                     <el-table-column label="患者姓名" prop="patientName" width="120" />
-                    <el-table-column label="性别" prop="gender" width="80" align="center" />
+                    <el-table-column label="性别" prop="genderText" width="80" align="center" />
                     <el-table-column label="年龄" prop="age" width="80" align="center" />
-                    <el-table-column label="患者ID/住院号" prop="patientId" width="150" />
-                    <el-table-column label="病历主要诊断 (EMR)" prop="emrSummary" min-width="250" show-overflow-tooltip />
-                    <el-table-column label="心电特征总结" prop="ecgSummary" min-width="250" show-overflow-tooltip />
-                    <el-table-column label="时间" prop="lastVisitTime" width="180" />
-                    <el-table-column label="病区/科室" prop="ward" width="150" />
+                    <el-table-column label="住院号" prop="inpatientNo" width="150" />
+                    <el-table-column label="病历主要诊断 (EMR)" prop="mainEmrDiagnosis" min-width="250"
+                        show-overflow-tooltip />
+                    <el-table-column label="心电特征总结" prop="ecgFeatureSummary" min-width="250" show-overflow-tooltip />
+                    <el-table-column label="收集时间" prop="collectionTime" width="180" />
+                    <el-table-column label="病区" prop="deptName" width="150" />
+                    <el-table-column label="数据状态" prop="isDataApprovedText" width="100" align="center" />
+                    <el-table-column label="导出状态" prop="isExportedText" width="100" align="center" />
                 </el-table>
             </div>
 
@@ -60,39 +71,81 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { Search, Download, User, Document, DataLine } from '@element-plus/icons-vue';
+import { ref, onMounted } from 'vue';
+import { Search, Refresh, Download, User, Document, DataLine } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { apiResearchDataPage, apiResearchDataExport, apiResearchDataExportAll } from '@/apis/research';
+
 
 const searchForms = ref({
-    userKeyword: '',
+    patientKeyword: '',
     emrKeyword: '',
-    ecgKeyword: ''
+    ecgKeyword: '',
+    deptId: '',
+    dateRange: []
 });
 
 const loading = ref(false);
 const pageNum = ref(1);
 const pageSize = ref(10);
-const total = ref(120);
+const total = ref(0);
 
 const selectedRows = ref([]);
+const tableData = ref([]);
 
-// 前端模拟数据展示
-const tableData = ref([
-    { id: 1, patientName: '张三', gender: '男', age: 45, patientId: 'IP20261101', lastVisitTime: '2026-04-10 09:30:00', emrSummary: '高血压3级，伴并发症; 冠心病', ecgSummary: 'ST段压低，T波倒置，窦性心律', ward: '心血管内 科一区' },
-    { id: 2, patientName: '李四', gender: '女', age: 62, patientId: 'IP20261122', lastVisitTime: '2026-04-09 14:20:00', emrSummary: '二型糖尿病，心律失常', ecgSummary: '频发室性早搏，完全性右束支传导阻滞', ward: '老年病科' },
-    { id: 3, patientName: '王明', gender: '男', age: 38, patientId: 'IP20261135', lastVisitTime: '2026-04-12 11:15:00', emrSummary: '急性心肌梗死恢复期', ecgSummary: '前壁心肌梗死演变期，Q波异常', ward: '冠心病监护病区' },
-    { id: 4, patientName: '赵六', gender: '女', age: 71, patientId: 'IP20261150', lastVisitTime: '2026-04-11 16:05:00', emrSummary: '慢性心力衰竭，持续性房颤', ecgSummary: '心房颤动，伴心室率过快', ward: '心血管内 科二区' },
-    { id: 5, patientName: '钱七', gender: '男', age: 55, patientId: 'IP20261188', lastVisitTime: '2026-04-10 08:00:00', emrSummary: '高脂血症', ecgSummary: '窦性心动过缓', ward: '心电康复病区' }
-]);
+const downloadBlob = (blob, defaultFilename) => {
+    const url = window.URL.createObjectURL(new Blob([blob]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', defaultFilename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+};
 
-const handleQuery = () => {
+const handleReset = () => {
+    searchForms.value = {
+        patientKeyword: '',
+        emrKeyword: '',
+        ecgKeyword: '',
+        deptId: '',
+        dateRange: []
+    };
+    pageNum.value = 1;
+    handleQuery();
+};
+
+const handleQuery = async () => {
     loading.value = true;
-    setTimeout(() => {
-        // 模拟接口请求延时
-        ElMessage.success('科研数据检索成功 (模拟)');
+    try {
+        const queryData = {
+            pageNum: pageNum.value,
+            pageSize: pageSize.value,
+            patientKeyword: searchForms.value.patientKeyword,
+            emrKeyword: searchForms.value.emrKeyword,
+            ecgKeyword: searchForms.value.ecgKeyword,
+            deptId: searchForms.value.deptId
+        };
+        if (searchForms.value.dateRange && searchForms.value.dateRange.length === 2) {
+            queryData.startTime = searchForms.value.dateRange[0];
+            queryData.endTime = searchForms.value.dateRange[1];
+        }
+
+        const res = await apiResearchDataPage(queryData);
+        if (res.code === 0) {
+            tableData.value = res.data.list;
+            total.value = res.data.total;
+        } else {
+            ElMessage.error(res.message || '查询失败');
+        }
+    } catch (error) {
+        console.log(error);
+
+        ElMessage.error('网络或服务器异常');
+    } finally {
         loading.value = false;
-    }, 400);
+    }
 };
 
 const handleSelectionChange = (val) => {
@@ -102,18 +155,44 @@ const handleSelectionChange = (val) => {
 const handleExport = () => {
     if (selectedRows.value.length === 0) return;
     ElMessageBox.confirm(
-        `确定要导出已勾选的 ${selectedRows.value.length} 条科研记录吗？下载的数据将自动按照系统规则进行敏感隔离与脱敏处理。`,
+        `确定要导出已勾选的 ${selectedRows.value.length} 条科研记录吗？`,
         '科研数据导出确认',
         {
-            confirmButtonText: '确定导出脱敏数据',
+            confirmButtonText: '确定导出',
             cancelButtonText: '取消',
             type: 'warning',
         }
-    ).then(() => {
-        ElMessage({
-            type: 'success',
-            message: '导出指派成功，正在为您生成脱敏数据文件...',
-        });
+    ).then(async () => {
+        try {
+            const researchIdList = selectedRows.value.map(row => row.researchId);
+            const res = await apiResearchDataExport({ researchIdList });
+            downloadBlob(res, `research-data-selected-${new Date().getTime()}.csv`);
+            ElMessage.success('导出成功');
+        } catch (error) {
+            console.log(error);
+            ElMessage.error('导出失败');
+        }
+    }).catch(() => { });
+};
+
+const handleExportAll = () => {
+    ElMessageBox.confirm(
+        `确定要导出全部科研数据吗？`,
+        '全部科研数据导出确认',
+        {
+            confirmButtonText: '确定导出',
+            cancelButtonText: '取消',
+            type: 'warning',
+        }
+    ).then(async () => {
+        try {
+            const res = await apiResearchDataExportAll();
+            downloadBlob(res, `research-data-all-${new Date().getTime()}.csv`);
+            ElMessage.success('导出全部数据成功');
+        } catch (error) {
+            console.log(error);
+            ElMessage.error('导出失败');
+        }
     }).catch(() => { });
 };
 
@@ -126,6 +205,10 @@ const handleCurrentChange = (val) => {
     pageNum.value = val;
     handleQuery();
 };
+
+onMounted(() => {
+    handleQuery();
+});
 </script>
 
 <style lang="scss" scoped>
@@ -152,7 +235,15 @@ const handleCurrentChange = (val) => {
     margin-bottom: 12px;
 
     .search-input {
-        width: 250px;
+        width: 200px;
+    }
+
+    .search-input-small {
+        width: 120px;
+    }
+
+    .date-picker {
+        width: 360px;
     }
 
     .query-btn {
