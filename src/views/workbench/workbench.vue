@@ -665,7 +665,7 @@ onUnmounted(() => {
                 <el-descriptions-item label="异常类型">{{ currentDetail.abnormalType }}</el-descriptions-item>
                 <el-descriptions-item label="预警描述" :span="2">{{ currentDetail.warningDesc }}</el-descriptions-item>
                 <el-descriptions-item label="LIS辅助提示" :span="2">{{ currentDetail.lisHint }}</el-descriptions-item>
-                
+
                 <!-- 患者信息 -->
                 <el-descriptions-item label="患者姓名">{{ currentDetail.patientName }}</el-descriptions-item>
                 <el-descriptions-item label="患者ID">{{ currentDetail.patientId }}</el-descriptions-item>
@@ -676,30 +676,36 @@ onUnmounted(() => {
                 <el-descriptions-item label="床号">{{ currentDetail.bedNo }}</el-descriptions-item>
                 <el-descriptions-item label="联系电话">{{ currentDetail.phone }}</el-descriptions-item>
                 <el-descriptions-item label="主要诊断" :span="2">{{ currentDetail.primaryDiagnosis }}</el-descriptions-item>
-                
+
                 <!-- 采集信息 -->
                 <el-descriptions-item label="设备名称">{{ currentDetail.deviceName }}</el-descriptions-item>
                 <el-descriptions-item label="心电图编号">{{ currentDetail.ecgNo }}</el-descriptions-item>
                 <el-descriptions-item label="导联数">{{ currentDetail.leadCount }}</el-descriptions-item>
                 <el-descriptions-item label="采样率">{{ currentDetail.samplingRate }}</el-descriptions-item>
-                <el-descriptions-item label="采集时长">{{ currentDetail.collectionDuration ? currentDetail.collectionDuration + ' 秒' : '' }}</el-descriptions-item>
+                <el-descriptions-item label="采集时长">{{ currentDetail.collectionDuration ?
+                    currentDetail.collectionDuration + ' 秒'
+                    : '' }}</el-descriptions-item>
                 <el-descriptions-item label="置信度">{{ currentDetail.confidence }}</el-descriptions-item>
-                <el-descriptions-item label="采集时间" :span="2">{{ currentDetail.collectionStartTime }} 至 {{ currentDetail.collectionEndTime || '正在采集' }}</el-descriptions-item>
-                
+                <el-descriptions-item label="采集时间" :span="2">{{ currentDetail.collectionStartTime }} 至 {{
+                    currentDetail.collectionEndTime || '正在采集' }}</el-descriptions-item>
+
                 <!-- AI结论与指标 -->
                 <el-descriptions-item label="AI诊断编号">{{ currentDetail.diagnosisNo }}</el-descriptions-item>
                 <el-descriptions-item label="模型版本">{{ currentDetail.aiModelVersion }}</el-descriptions-item>
                 <el-descriptions-item label="AI完整结论" :span="2">{{ currentDetail.aiConclusion }}</el-descriptions-item>
-                
+
                 <el-descriptions-item label="心率">{{ currentDetail.heartRate }}</el-descriptions-item>
                 <el-descriptions-item label="PR间期">{{ currentDetail.prInterval }}</el-descriptions-item>
                 <el-descriptions-item label="QRS时限">{{ currentDetail.qrsDuration }}</el-descriptions-item>
-                <el-descriptions-item label="QT/QTc间期">{{ currentDetail.qtInterval }} / {{ currentDetail.qtcInterval }}</el-descriptions-item>
-                
-                <el-descriptions-item label="异常数量/级别">{{ currentDetail.abnormalCount }} / {{ currentDetail.abnormalLevelText }}</el-descriptions-item>
+                <el-descriptions-item label="QT/QTc间期">{{ currentDetail.qtInterval }} / {{ currentDetail.qtcInterval
+                    }}</el-descriptions-item>
+
+                <el-descriptions-item label="异常数量/级别">{{ currentDetail.abnormalCount }} / {{
+                    currentDetail.abnormalLevelText
+                    }}</el-descriptions-item>
                 <el-descriptions-item label="AI分析状态">{{ currentDetail.analysisStatusText }}</el-descriptions-item>
                 <el-descriptions-item label="诊断完成时间" :span="2">{{ currentDetail.diagnosisTime }}</el-descriptions-item>
-                
+
                 <!-- 处理信息 -->
                 <el-descriptions-item label="处理人">{{ currentDetail.handleUserName }}</el-descriptions-item>
                 <el-descriptions-item label="处理时间">{{ currentDetail.handleTime }}</el-descriptions-item>
