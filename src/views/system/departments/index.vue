@@ -7,7 +7,8 @@ import {
   apiDepartmentAdd,
   apiDepartmentEdit,
   apiDepartmentDelete,
-  apiDepartmentDetail
+  apiDepartmentDetail,
+  apiDepartmentTree
 } from '@/apis/system/department';
 
 defineOptions({ name: "SystemDepartments" });
@@ -73,8 +74,19 @@ const getList = async () => {
   }
 };
 
+const deptTreeData = ref([]);
+const getDeptTree = async () => {
+  try {
+    const res = await apiDepartmentTree();
+    deptTreeData.value = res.data || [];
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 onMounted(() => {
   getList();
+  getDeptTree();
 });
 
 const handleSearch = () => {
@@ -152,12 +164,14 @@ const handleDelete = (row) => {
       await apiDepartmentDelete(row.deptId, false);
       ElMessage.success('删除成功');
       getList();
+      getDeptTree();
     } catch (error) {
       if (error && error.data && error.data.code === 400 && error.data.message && error.data.message.includes('绑定')) {
         ElMessageBox.confirm(`${error.data.message}，是否强制删除？`, '确认', { type: 'warning' }).then(async () => {
           await apiDepartmentDelete(row.deptId, true);
           ElMessage.success('强制删除成功');
           getList();
+          getDeptTree();
         }).catch(() => { });
       } else {
         ElMessage.error('删除失败');
@@ -192,6 +206,7 @@ const submitForm = () => {
         }
         dialogVisible.value = false;
         getList();
+        getDeptTree();
       } catch (error) {
         console.log(error);
 
@@ -265,8 +280,10 @@ const submitForm = () => {
         <el-form-item label="科室名称" prop="deptName">
           <el-input v-model="form.deptName" placeholder="请输入科室名称" />
         </el-form-item>
-        <el-form-item label="上级科室ID" prop="parentDeptId">
-          <el-input v-model="form.parentDeptId" placeholder="请输入上级科室ID" />
+        <el-form-item label="上级科室" prop="parentDeptId">
+          <el-tree-select v-model="form.parentDeptId" :data="deptTreeData"
+            :props="{ label: 'deptName', value: 'deptId', children: 'children' }" placeholder="请选择上级科室" check-strictly
+            clearable style="width: 100%" />
         </el-form-item>
         <el-form-item label="科室层级" prop="deptLevel">
           <el-input-number v-model="form.deptLevel" :min="1" />

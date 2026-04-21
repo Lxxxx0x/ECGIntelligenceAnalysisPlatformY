@@ -4,8 +4,11 @@
         <div class="search-bar">
             <el-form :inline="true" :model="searchQuery" class="form-inline">
                 <el-form-item label="设备名称">
-                    <el-input v-model="searchQuery.deviceName" placeholder="设备名称" clearable @keyup.enter="handleSearch"
-                        @clear="handleSearch"></el-input>
+                    <el-select v-model="searchQuery.deviceName" placeholder="全部设备" clearable style="width: 150px"
+                        @change="handleSearch">
+                        <el-option v-for="item in deviceOptions.filter(opt => opt.value !== '')" :key="item.value"
+                            :label="item.label" :value="item.label" />
+                    </el-select>
                 </el-form-item>
                 <el-form-item label="设备类型">
                     <el-select v-model="searchQuery.deviceType" placeholder="全部类型" clearable style="width: 150px"
@@ -102,18 +105,18 @@
                             </template>
                             <div class="info-list">
                                 <div class="info-item"><span class="label">设备编号：</span><span class="value">{{
-                                        currentDetail.basicInfo?.deviceCode }}</span></div>
+                                    currentDetail.basicInfo?.deviceCode }}</span></div>
                                 <div class="info-item"><span class="label">设备名称：</span><span class="value">{{
-                                        currentDetail.basicInfo?.deviceName }}</span></div>
+                                    currentDetail.basicInfo?.deviceName }}</span></div>
                                 <div class="info-item"><span class="label">类型：</span><span class="value">{{
-                                        currentDetail.basicInfo?.deviceTypeText }}</span></div>
+                                    currentDetail.basicInfo?.deviceTypeText }}</span></div>
                                 <div class="info-item"><span class="label">型号：</span><span class="value">{{
-                                        currentDetail.basicInfo?.deviceModel }}</span></div>
+                                    currentDetail.basicInfo?.deviceModel }}</span></div>
                                 <div class="info-item">
                                     <span class="label">厂商：</span>
                                     <span class="value"><el-tag size="small" color="#f4f4f5"
                                             style="color: #409eff; border-color: #d9ecff;">{{
-                                            currentDetail.basicInfo?.manufacturer }}</el-tag></span>
+                                                currentDetail.basicInfo?.manufacturer }}</el-tag></span>
                                 </div>
                                 <div class="info-item">
                                     <span class="label">状态：</span>
@@ -123,9 +126,9 @@
                                     </span>
                                 </div>
                                 <div class="info-item"><span class="label">所属病区：</span><span class="value">{{
-                                        currentDetail.basicInfo?.wardName }}</span></div>
+                                    currentDetail.basicInfo?.wardName }}</span></div>
                                 <div class="info-item"><span class="label">安装日期：</span><span class="value">{{
-                                        currentDetail.basicInfo?.installDate }}</span></div>
+                                    currentDetail.basicInfo?.installDate }}</span></div>
                             </div>
                         </el-card>
                     </el-col>
@@ -140,22 +143,22 @@
                             <div class="stat-list">
                                 <div class="stat-item"><span class="label">今日测量：</span><span
                                         class="value text-primary">{{
-                                        currentDetail.usageStat?.todayMeasureCount }} 次</span></div>
+                                            currentDetail.usageStat?.todayMeasureCount }} 次</span></div>
                                 <div class="stat-item"><span class="label">本周测量：</span><span
                                         class="value text-primary">{{
-                                        currentDetail.usageStat?.weekMeasureCount }} 次</span></div>
+                                            currentDetail.usageStat?.weekMeasureCount }} 次</span></div>
                                 <div class="stat-item"><span class="label">本月测量：</span><span
                                         class="value text-primary">{{
-                                        currentDetail.usageStat?.monthMeasureCount }} 次</span></div>
+                                            currentDetail.usageStat?.monthMeasureCount }} 次</span></div>
                                 <div class="stat-item bar-item">
                                     <div class="bar-header"><span class="label">设备在线率：</span><span class="value">{{
-                                            currentDetail.usageStat?.onlineRate }}%</span></div>
+                                        currentDetail.usageStat?.onlineRate }}%</span></div>
                                     <el-progress :percentage="Number(currentDetail.usageStat?.onlineRate) || 0"
                                         color="#67c23a" :show-text="false" :stroke-width="8"></el-progress>
                                 </div>
                                 <div class="stat-item bar-item">
                                     <div class="bar-header"><span class="label">错误率：</span><span class="value">{{
-                                            currentDetail.usageStat?.errorRate }}%</span></div>
+                                        currentDetail.usageStat?.errorRate }}%</span></div>
                                     <el-progress :percentage="Number(currentDetail.usageStat?.errorRate) || 0"
                                         color="#f56c6c" :show-text="false" :stroke-width="8"></el-progress>
                                 </div>
@@ -266,7 +269,9 @@
                 <el-form-item label="设备状态" prop="deviceStatus">
                     <el-radio-group v-model="addForm.deviceStatus">
                         <el-radio :label="1">正常</el-radio>
-                        <el-radio :label="0">异常</el-radio>
+                        <el-radio :label="2">维修</el-radio>
+                        <el-radio :label="3">停用</el-radio>
+                        <el-radio :label="4">离线</el-radio>
                     </el-radio-group>
                 </el-form-item>
                 <el-form-item label="上次维护时间" prop="lastMaintainTime">
@@ -292,6 +297,7 @@
 import { reactive, ref, onMounted } from 'vue'
 import { Search, Refresh, User } from '@element-plus/icons-vue'
 import { apiDevicePage, apiDeviceDicts, apiDeviceAdd, apiDeviceDelete, apiDeviceDetail } from '@/apis/device'
+import { apiQualityControlDicts } from '@/apis/quality'
 import { ElMessage } from 'element-plus'
 
 // 搜索条件
@@ -305,6 +311,7 @@ const searchQuery = reactive({
 // 字典数据
 const deviceTypeOptions = ref([])
 const wardOptions = ref([])
+const deviceOptions = ref([])
 
 // 表格数据
 const tableData = ref([])
@@ -316,10 +323,22 @@ const total = ref(0)
 // 获取字典项
 const getDicts = async () => {
     try {
-        const res = await apiDeviceDicts();
-        if (res.code === 0 && res.data) {
-            deviceTypeOptions.value = res.data.deviceTypeOptions || [];
-            wardOptions.value = res.data.wardOptions || [];
+        const [res, qcRes] = await Promise.all([
+            apiDeviceDicts(),
+            apiQualityControlDicts()
+        ]);
+
+        const responseData = res.data || res;
+        const data = responseData.data || responseData;
+        if (data) {
+            deviceTypeOptions.value = data.deviceTypeOptions || [];
+            wardOptions.value = data.wardOptions || [];
+        }
+
+        const qcResponseData = qcRes.data || qcRes;
+        const qcData = qcResponseData.data || qcResponseData;
+        if (qcData) {
+            deviceOptions.value = qcData.deviceOptions || [];
         }
     } catch (error) {
         console.error('获取设备字典失败:', error);
@@ -388,8 +407,9 @@ const handleCurrentChange = (val) => {
 // 帮助函数匹配状态颜色: 正常等
 const getStatusType = (status) => {
     if (status === 1 || status === '正常') return 'success';
-    if (status === 0 || status === '异常') return 'danger';
-    return 'warning';
+    if (status === 2 || status === '维修' || status === 0 || status === '异常') return 'danger';
+    if (status === 3 || status === '停用' || status === 4 || status === '离线') return 'info';
+    return 'info';
 }
 
 // 弹窗及数据

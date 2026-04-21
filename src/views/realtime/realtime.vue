@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { Aim, Timer, TrendCharts, Bell } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { apiMonitorStatistics, apiMonitorPatients, apiWardDistribution, apiMonitorPatientDetail } from '@/apis/realtime'
 
 // Top Stats Data
 const stats = ref([
@@ -12,25 +13,10 @@ const stats = ref([
 ])
 
 // Real-time Patient Dashboard Data
-const patients = ref([
-    { id: 1, name: '张三', ward: '心血管内科一区', bed: '01床', hr: 73, status: 'normal', time: '15:18:57' },
-    { id: 2, name: '李四', ward: '心血管内科二区', bed: '02床', hr: 87, status: 'normal', time: '15:18:57' },
-    { id: 3, name: '王五', ward: '神经内科一区', bed: '15床', hr: 107, status: 'warning', time: '15:18:57' },
-    { id: 4, name: '赵六', ward: '老年病科', bed: '28床', hr: 51, status: 'warning', time: '15:18:57' },
-    { id: 5, name: '孙七', ward: '心血管内科一区', bed: '05床', hr: 78, status: 'normal', time: '15:18:57' },
-    { id: 6, name: '周八', ward: '内分泌科', bed: '09床', hr: 68, status: 'normal', time: '15:18:57' },
-    { id: 7, name: '吴九', ward: 'ICU', bed: '01床', hr: 92, status: 'normal', time: '15:18:57' },
-    { id: 8, name: '郑十', ward: '居家监护', bed: '-床', hr: 88, status: 'normal', time: '15:18:57' },
-])
+const patients = ref([])
 
 // Department Stats Data
-const deptStats = ref([
-    { name: '心血管内科', value: 456, percentage: 85 },
-    { name: '神经内科', value: 234, percentage: 45 },
-    { name: '老年病科', value: 189, percentage: 36 },
-    { name: '内分泌科', value: 156, percentage: 28 },
-    { name: '其他', value: 221, percentage: 40 },
-])
+const deptStats = ref([])
 
 const filterLevel = ref('全部')
 
@@ -46,30 +32,98 @@ const handleAddFocus = (patient) => {
     ElMessage.success(`已将 ${patient.name} 加入重点监护`)
 }
 
+// Fetch Stats
+const fetchStats = async () => {
+    try {
+        const res = await apiMonitorStatistics()
+        const resData = res.data || res;
+        const data = resData.data || resData;
+
+        if (data) {
+            stats.value[0].value = data.todayCollect || 0;
+            stats.value[1].value = data.pendingAnalyse || 0;
+            stats.value[2].value = data.pendingAudit || 0;
+            stats.value[3].value = data.alertTotal || 0;
+        }
+    } catch (error) {
+        console.error('获取统计数据失败:', error)
+    }
+}
+
+// 详情弹窗相关数据
+const detailDialogVisible = ref(false)
+const patientDetail = ref(null)
+
+const openPatientDetail = async (patientId) => {
+    try {
+        const res = await apiMonitorPatientDetail(patientId)
+        const resData = res.data || res;
+        const data = resData.data || resData;
+        if (data) {
+            patientDetail.value = data;
+            detailDialogVisible.value = true;
+        } else {
+            ElMessage.error('获取患者详情失败');
+        }
+    } catch (error) {
+        console.error('获取患者详情失败:', error)
+        ElMessage.error('获取患者详情出错');
+    }
+}
+
+// 获取患者监护列表
+const fetchPatients = async () => {
+    try {
+        const res = await apiMonitorPatients()
+        const resData = res.data || res;
+        const data = resData.data || resData;
+
+        if (data && data.list) {
+            patients.value = data.list.map(p => ({
+                id: p.patientId,
+                name: p.patientName,
+                wardBed: p.wardBed,
+                hr: p.heartRate,
+                status: p.monitorStatus === '预警' ? 'warning' : 'normal',
+                statusText: p.monitorStatus,
+                time: p.updateTime
+            }))
+        }
+    } catch (error) {
+        console.error('获取患者列表失败:', error)
+    }
+}
+
+// 获取科室分布统计
+const fetchDeptStats = async () => {
+    try {
+        const res = await apiWardDistribution()
+        const resData = res.data || res;
+        const data = resData.data || resData;
+
+        if (data && data.dataList) {
+            const total = data.dataList.reduce((sum, item) => sum + item.patientCount, 0);
+            deptStats.value = data.dataList.map(item => ({
+                name: item.wardName,
+                value: item.patientCount,
+                percentage: total === 0 ? 0 : Math.round((item.patientCount / total) * 100)
+            }))
+        }
+    } catch (error) {
+        console.error('获取科室分布失败:', error)
+    }
+}
+
 // Simulate real-time updates
 let intervalId;
 onMounted(() => {
+    fetchStats()
+    fetchPatients()
+    fetchDeptStats()
     intervalId = setInterval(() => {
-        // Randomly update HR and time for 2 random patients
-        const now = new Date()
-        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
-
-        patients.value.forEach(p => {
-            if (Math.random() > 0.7) {
-                // Vary HR slightly
-                let change = Math.floor(Math.random() * 5) - 2;
-                p.hr = Math.max(40, Math.min(200, p.hr + change));
-
-                // Auto status shift based on mock thresholds
-                if (p.hr > 100 || p.hr < 55) {
-                    p.status = 'warning'
-                } else {
-                    p.status = 'normal'
-                }
-            }
-            p.time = timeStr;
-        })
-    }, 3000);
+        fetchPatients()
+        fetchDeptStats()
+    }, 5000); // 调整为5秒一刷
 })
 
 onUnmounted(() => {
@@ -121,19 +175,20 @@ onUnmounted(() => {
                 <div class="patient-grid">
                     <!-- Patient Cards -->
                     <div v-for="patient in filteredPatients" :key="patient.id" class="patient-card"
-                        :class="patient.status === 'warning' ? 'is-warning' : 'is-normal'">
+                        :class="patient.status === 'warning' ? 'is-warning' : 'is-normal'"
+                        @click="openPatientDetail(patient.id)" style="cursor: pointer;">
                         <!-- Card Header -->
                         <div class="p-header">
                             <span class="p-name">{{ patient.name }}</span>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <el-button size="small" type="primary" link
-                                    @click="handleAddFocus(patient)">加入重点监护</el-button>
-                                <span class="p-tag">{{ patient.status === 'warning' ? '预警' : '正常' }}</span>
+                                    @click.stop="handleAddFocus(patient)">加入重点监护</el-button>
+                                <span class="p-tag">{{ patient.statusText }}</span>
                             </div>
                         </div>
                         <!-- Card Meta -->
                         <div class="p-meta">
-                            {{ patient.ward }} <span class="divider">|</span> {{ patient.bed }}
+                            {{ patient.wardBed }}
                         </div>
                         <!-- HR Display -->
                         <div class="p-hr-box">
@@ -174,6 +229,74 @@ onUnmounted(() => {
                 </div>
             </div>
         </div>
+
+        <!-- 患者详情弹窗 -->
+        <el-dialog v-model="detailDialogVisible" title="患者实时监护详情" width="800px" destroy-on-close>
+            <div v-if="patientDetail" class="patient-detail-content">
+                <el-descriptions :column="2" border>
+                    <el-descriptions-item label="患者姓名">{{ patientDetail.patientName }}</el-descriptions-item>
+                    <el-descriptions-item label="住院号">{{ patientDetail.inpatientNo }}</el-descriptions-item>
+                    <el-descriptions-item label="病区">{{ patientDetail.wardName }}</el-descriptions-item>
+                    <el-descriptions-item label="床位/关联病床">{{ patientDetail.wardBed }}</el-descriptions-item>
+                    <el-descriptions-item label="主要诊断" :span="2">{{ patientDetail.primaryDiagnosis }}</el-descriptions-item>
+                    <el-descriptions-item label="当前心率">
+                        <span :class="{'text-red': patientDetail.currentHeartRate > 100 || patientDetail.currentHeartRate < 60, 'font-bold': true}">{{ patientDetail.currentHeartRate }} bpm</span>
+                    </el-descriptions-item>
+                    <el-descriptions-item label="监护状态">
+                        <el-tag :type="patientDetail.monitorStatus === 2 ? 'danger' : 'success'" size="small">
+                            {{ patientDetail.monitorStatusText }} {{ patientDetail.warningLevelText ? `(${patientDetail.warningLevelText})` : '' }}
+                        </el-tag>
+                    </el-descriptions-item>
+                    <el-descriptions-item label="更新时间">{{ patientDetail.updateTime?.replace('T', ' ') }}</el-descriptions-item>
+                </el-descriptions>
+
+                <div v-if="patientDetail.continuousRecords && patientDetail.continuousRecords.length > 0" style="margin-top: 20px;">
+                    <div style="font-weight: 600; margin-bottom: 10px; color: #1e293b;">连续监控记录</div>
+                    <el-table :data="patientDetail.continuousRecords" border size="small" style="width: 100%">
+                        <el-table-column prop="ecgNo" label="记录编号" width="130" show-overflow-tooltip />
+                        <el-table-column prop="deviceName" label="设备名称" width="130" show-overflow-tooltip />
+                        <el-table-column label="采集时间" width="160">
+                            <template #default="{ row }">
+                                {{ row.collectionStartTime?.split('T')[1] }} - {{ row.collectionEndTime?.split('T')[1] }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="AI结论" min-width="150" show-overflow-tooltip>
+                            <template #default="{ row }">
+                                <span :class="{'text-red': row.aiConclusionShort?.includes('风险')}">{{ row.aiConclusionShort }}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="displayStatusText" label="状态" width="80" align="center" />
+                    </el-table>
+                </div>
+
+                <div v-if="patientDetail.warningHistory && patientDetail.warningHistory.length > 0" style="margin-top: 20px;">
+                    <div style="font-weight: 600; margin-bottom: 10px; color: #ef4444;">历史预警记录</div>
+                    <el-table :data="patientDetail.warningHistory" border size="small" style="width: 100%">
+                        <el-table-column label="预警时间" width="150">
+                            <template #default="{ row }">
+                                {{ row.warningTime?.replace('T', ' ') }}
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="warningType" label="预警类型" min-width="120" show-overflow-tooltip />
+                        <el-table-column prop="alertLevelText" label="等级" width="80" align="center">
+                            <template #default="{ row }">
+                                <el-tag type="danger" size="small" effect="dark">{{ row.alertLevelText }}</el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="alertStatusText" label="处理状态" width="80" align="center" />
+                        <el-table-column prop="handleUserName" label="处理人" width="80" align="center" />
+                        <el-table-column prop="handleRemark" label="处理结果" min-width="120" show-overflow-tooltip />
+                    </el-table>
+                </div>
+
+            </div>
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="detailDialogVisible = false">关闭</el-button>
+                    <el-button type="primary" @click="detailDialogVisible = false">进入深度分析台</el-button>
+                </div>
+            </template>
+        </el-dialog>
     </div>
 </template>
 

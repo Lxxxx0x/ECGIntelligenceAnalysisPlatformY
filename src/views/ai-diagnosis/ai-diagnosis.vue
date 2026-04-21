@@ -20,14 +20,7 @@
                     <div class="stat-info">
                         <div class="stat-title">{{ stat.title }}</div>
                         <div class="stat-value">{{ stat.value }}<span v-if="stat.unit" class="unit">{{ stat.unit
-                                }}</span></div>
-                        <div class="stat-trend" :class="stat.trend > 0 ? 'up' : 'down'">
-                            同比 {{ Math.abs(stat.trend) }}%
-                            <el-icon>
-                                <Top v-if="stat.trend > 0" />
-                                <Bottom v-else />
-                            </el-icon>
-                        </div>
+                        }}</span></div>
                     </div>
                 </el-card>
             </el-col>
@@ -70,27 +63,27 @@
             <template #header>
                 <div class="card-header">
                     <span>AI诊断记录列表</span>
-                    <el-button type="primary" link>查看全部</el-button>
+                    <el-button type="primary" link @click="openAllRecordsDialog">查看全部</el-button>
                 </div>
             </template>
             <el-table :data="recentAnomalies" style="width: 100%" class="custom-table"
                 :header-cell-style="{ background: '#f8fafc', color: '#475569' }">
-                <el-table-column prop="diagnosisId" label="诊断编号" width="120" show-overflow-tooltip />
-                <el-table-column prop="ecgId" label="心电图编号" width="120" show-overflow-tooltip />
-                <el-table-column prop="patientInfo" label="患者信息" width="140" />
-                <el-table-column prop="hospitalNo" label="住院号" width="100" />
-                <el-table-column prop="department" label="科室" width="120" show-overflow-tooltip />
+                <el-table-column prop="diagnosisId" label="诊断编号" width="140" show-overflow-tooltip />
+                <el-table-column prop="ecgNo" label="心电图编号" width="140" show-overflow-tooltip />
+                <el-table-column prop="patientInfo" label="患者信息" width="140" show-overflow-tooltip />
+                <el-table-column prop="hospitalNo" label="住院号" width="120" />
+                <el-table-column prop="deptName" label="科室" width="140" show-overflow-tooltip />
                 <el-table-column prop="aiVersion" label="AI版本" width="100" />
-                <el-table-column prop="diagnosisConclusion" label="诊断结论" min-width="180" show-overflow-tooltip>
+                <el-table-column prop="aiConclusion" label="诊断结论" min-width="200" show-overflow-tooltip>
                     <template #default="scope">
-                        <span class="anomaly-type">{{ scope.row.diagnosisConclusion }}</span>
+                        <span class="anomaly-type">{{ scope.row.aiConclusion }}</span>
                     </template>
                 </el-table-column>
-                <el-table-column prop="anomalyCount" label="异常数量" width="90" align="center">
+                <el-table-column prop="abnormalCount" label="异常数量" width="100" align="center">
                     <template #default="scope">
-                        <el-tag :type="scope.row.anomalyCount > 0 ? 'danger' : 'info'" size="small" effect="plain"
-                            v-if="scope.row.anomalyCount > 0">
-                            {{ scope.row.anomalyCount }} 项
+                        <el-tag :type="scope.row.abnormalCount > 0 ? 'danger' : 'info'" size="small" effect="plain"
+                            v-if="scope.row.abnormalCount > 0">
+                            {{ scope.row.abnormalCount }} 项
                         </el-tag>
                         <span v-else>-</span>
                     </template>
@@ -100,15 +93,100 @@
                         <el-progress :percentage="scope.row.confidence" :color="getConfidenceColor" :stroke-width="8" />
                     </template>
                 </el-table-column>
-                <el-table-column prop="diagnosisTime" label="诊断时间" width="160" />
-                <el-table-column label="操作" fixed="right" width="140">
+                <el-table-column prop="diagnosisTime" label="诊断时间" width="180">
                     <template #default="scope">
-                        <el-button link type="primary" size="small">查看详情</el-button>
-                        <el-button link type="primary" size="small" @click="openReviewDialog(scope.row)">审核</el-button>
+                        {{ scope.row.diagnosisTime?.replace('T', ' ') }}
+                    </template>
+                </el-table-column>
+                <el-table-column prop="status" label="状态" width="100" align="center">
+                    <template #default="scope">
+                        <el-tag :type="scope.row.status === '待审核' ? 'warning' : 'success'" size="small">
+                            {{ scope.row.status }}
+                        </el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column label="操作" fixed="right" width="140" align="center">
+                    <template #default="scope">
+                        <el-button link type="primary" size="small"
+                            @click="openDetailDialog(scope.row)">查看详情</el-button>
+                        <el-button link type="primary" size="small" :disabled="scope.row.status === '已审核'"
+                            @click="openReviewDialog(scope.row)">审核</el-button>
                     </template>
                 </el-table-column>
             </el-table>
         </el-card>
+
+        <!-- 查看全部弹窗 -->
+        <el-dialog v-model="allRecordsVisible" title="全部AI诊断记录" width="90%" top="5vh" destroy-on-close>
+            <div class="search-bar" style="margin-bottom: 20px; display: flex; gap: 10px;">
+                <el-input v-model="allRecordsParams.ecgNo" placeholder="心电图编号" style="width: 180px" clearable
+                    @keyup.enter="handleSearchAll" />
+                <el-input v-model="allRecordsParams.patientName" placeholder="患者姓名" style="width: 150px" clearable
+                    @keyup.enter="handleSearchAll" />
+                <el-select v-model="allRecordsParams.status" placeholder="审核状态" clearable style="width: 120px"
+                    @change="handleSearchAll">
+                    <el-option label="待审核" value="待审核"></el-option>
+                    <el-option label="已审核" value="已审核"></el-option>
+                </el-select>
+                <el-button type="primary" :icon="Search" @click="handleSearchAll">查询</el-button>
+            </div>
+
+            <el-table v-loading="allRecordsLoading" :data="allRecordsData" style="width: 100%"
+                :header-cell-style="{ background: '#f8fafc', color: '#475569' }" height="55vh">
+                <el-table-column prop="diagnosisId" label="诊断编号" width="140" show-overflow-tooltip />
+                <el-table-column prop="ecgNo" label="心电图编号" width="140" show-overflow-tooltip />
+                <el-table-column prop="patientInfo" label="患者信息" width="140" show-overflow-tooltip />
+                <el-table-column prop="hospitalNo" label="住院号" width="120" />
+                <el-table-column prop="deptName" label="科室" width="140" show-overflow-tooltip />
+                <el-table-column prop="aiVersion" label="AI版本" width="100" />
+                <el-table-column prop="aiConclusion" label="诊断结论" min-width="200" show-overflow-tooltip>
+                    <template #default="scope">
+                        <span class="anomaly-type">{{ scope.row.aiConclusion }}</span>
+                    </template>
+                </el-table-column>
+                <el-table-column prop="abnormalCount" label="异常数量" width="100" align="center">
+                    <template #default="scope">
+                        <el-tag :type="scope.row.abnormalCount > 0 ? 'danger' : 'info'" size="small" effect="plain"
+                            v-if="scope.row.abnormalCount > 0">
+                            {{ scope.row.abnormalCount }} 项
+                        </el-tag>
+                        <span v-else>-</span>
+                    </template>
+                </el-table-column>
+                <el-table-column prop="confidence" label="置信度" width="160">
+                    <template #default="scope">
+                        <el-progress :percentage="scope.row.confidence" :color="getConfidenceColor" :stroke-width="8" />
+                    </template>
+                </el-table-column>
+                <el-table-column prop="diagnosisTime" label="诊断时间" width="180">
+                    <template #default="scope">
+                        {{ scope.row.diagnosisTime?.replace('T', ' ') }}
+                    </template>
+                </el-table-column>
+                <el-table-column prop="status" label="状态" width="100" align="center">
+                    <template #default="scope">
+                        <el-tag :type="scope.row.status === '待审核' ? 'warning' : 'success'" size="small">
+                            {{ scope.row.status }}
+                        </el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column label="操作" fixed="right" width="140" align="center">
+                    <template #default="scope">
+                        <el-button link type="primary" size="small"
+                            @click="openDetailDialog(scope.row)">查看详情</el-button>
+                        <el-button link type="primary" size="small" :disabled="scope.row.status === '已审核'"
+                            @click="openReviewDialog(scope.row)">审核</el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+                <el-pagination v-model:current-page="allRecordsParams.pageNum"
+                    v-model:page-size="allRecordsParams.pageSize" :page-sizes="[10, 20, 50, 100]" background
+                    layout="total, sizes, prev, pager, next, jumper" :total="allRecordsTotal"
+                    @size-change="handleSizeChange" @current-change="handleCurrentChange" />
+            </div>
+        </el-dialog>
 
         <!-- 医生审核弹窗 -->
         <el-dialog v-model="reviewDialogVisible" title="人工复核 - 心电图数据" width="80%" top="5vh" destroy-on-close
@@ -135,7 +213,7 @@
                                     :color="getConfidenceColor" />
                             </div>
                         </div>
-                        <div class="ai-conclusion-text">{{ currentReviewingData?.diagnosisConclusion }}</div>
+                        <div class="ai-conclusion-text">{{ currentReviewingData?.aiConclusion }}</div>
                     </div>
                 </div>
 
@@ -152,7 +230,7 @@
                         placeholder="请输入复核意见，若确认无误可直接采用AI结论..."></el-input>
                     <div class="quick-actions">
                         <el-button size="small"
-                            @click="doctorConclusion = currentReviewingData?.diagnosisConclusion">一键采用AI结论</el-button>
+                            @click="doctorConclusion = currentReviewingData?.aiConclusion">一键采用AI结论</el-button>
                         <el-button size="small" @click="doctorConclusion = '正常心电图'">标记为正常</el-button>
                     </div>
                 </div>
@@ -165,14 +243,85 @@
                 </span>
             </template>
         </el-dialog>
+
+        <!-- 查看详情对话框 -->
+        <el-dialog v-model="detailVisible" title="分析详情" width="850px">
+            <div class="detail-content" v-if="detailData">
+                <el-descriptions title="基础信息" :column="2" border>
+                    <el-descriptions-item label="心电图编号">{{ detailData.ecgNo }}</el-descriptions-item>
+                    <el-descriptions-item label="病人ID">{{ detailData.patientId }}</el-descriptions-item>
+                    <el-descriptions-item label="病人姓名">{{ detailData.patientName }}</el-descriptions-item>
+                    <el-descriptions-item label="性别 / 年龄">{{ detailData.gender }} / {{ detailData.age
+                        }}岁</el-descriptions-item>
+                    <el-descriptions-item label="住院号">{{ detailData.hospitalNo }}</el-descriptions-item>
+                    <el-descriptions-item label="科室">{{ detailData.deptName }}</el-descriptions-item>
+                    <el-descriptions-item label="采集时间" :span="2">{{ detailData.collectionStartTime?.replace('T', ' ') }}
+                        至 {{
+                            detailData.collectionEndTime?.replace('T', ' ') }}</el-descriptions-item>
+                </el-descriptions>
+
+                <el-descriptions title="诊断信息" :column="2" border style="margin-top: 20px;">
+                    <el-descriptions-item label="诊断编号">{{ detailData.diagnosisId }}</el-descriptions-item>
+                    <el-descriptions-item label="AI版本">{{ detailData.aiVersion }}</el-descriptions-item>
+                    <el-descriptions-item label="诊断时间" :span="2">{{ detailData.diagnosisTime?.replace('T', ' ')
+                        }}</el-descriptions-item>
+                    <el-descriptions-item label="心率">{{ detailData.heartRate }} bpm</el-descriptions-item>
+                    <el-descriptions-item label="PR间期">{{ detailData.prInterval }} ms</el-descriptions-item>
+                    <el-descriptions-item label="QRS时限">{{ detailData.qrsDuration }} ms</el-descriptions-item>
+                    <el-descriptions-item label="QT间期">{{ detailData.qtInterval }} ms</el-descriptions-item>
+                    <el-descriptions-item label="QTc间期">{{ detailData.qtcInterval }} ms</el-descriptions-item>
+                    <el-descriptions-item label="异常类型">{{ detailData.abnormalType || '-' }}</el-descriptions-item>
+                    <el-descriptions-item label="异常数量">{{ detailData.abnormalCount }} 项</el-descriptions-item>
+                    <el-descriptions-item label="置信度">{{ detailData.confidence }}%</el-descriptions-item>
+                    <el-descriptions-item label="AI结论" :span="2">{{ detailData.aiConclusion }}</el-descriptions-item>
+                    <el-descriptions-item label="当前状态">
+                        <el-tag :type="detailData.status === '已审核' ? 'success' : 'warning'" size="small">{{
+                            detailData.status
+                            }}</el-tag>
+                    </el-descriptions-item>
+                </el-descriptions>
+
+                <el-descriptions title="医生审核信息" :column="2" border style="margin-top: 20px;"
+                    v-if="detailData.status === '已审核' || detailData.auditDoctorName">
+                    <el-descriptions-item label="审核医生">{{ detailData.auditDoctorName }}</el-descriptions-item>
+                    <el-descriptions-item label="审核时间">{{ detailData.auditTime?.replace('T', ' ')
+                        }}</el-descriptions-item>
+                    <el-descriptions-item label="医生结论" :span="2">{{ detailData.doctorConclusion
+                        }}</el-descriptions-item>
+                    <el-descriptions-item label="医生建议" :span="2">{{ detailData.doctorSuggestion
+                        }}</el-descriptions-item>
+                    <el-descriptions-item label="审核意见" :span="2">{{ detailData.auditOpinion }}</el-descriptions-item>
+                </el-descriptions>
+
+                <div v-if="detailData.abnormalPointList && detailData.abnormalPointList.length > 0"
+                    style="margin-top: 20px;">
+                    <div style="font-size: 16px; font-weight: 600; margin-bottom: 10px; color: #1e293b;">异常波段列表</div>
+                    <el-table :data="detailData.abnormalPointList" border size="small" style="width: 100%">
+                        <el-table-column prop="pointIndex" label="片段索引" width="100" align="center" />
+                        <el-table-column prop="pointType" label="类型" width="120" />
+                        <el-table-column prop="level" label="风险等级" width="100" align="center">
+                            <template #default="scope">
+                                <el-tag
+                                    :type="scope.row.level === '高危' ? 'danger' : (scope.row.level === '中危' ? 'warning' : 'info')"
+                                    size="small">
+                                    {{ scope.row.level }}
+                                </el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="description" label="异常描述" />
+                    </el-table>
+                </div>
+            </div>
+        </el-dialog>
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
-import { Top, Bottom, DataLine, Warning, TrendCharts, Coordinate } from '@element-plus/icons-vue';
+import { reactive, ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { DataLine, Warning, TrendCharts, Coordinate, Search } from '@element-plus/icons-vue';
 import * as echarts from 'echarts';
 import { ElMessage } from 'element-plus';
+import { apiAiDiagnosisOverview, apiAiDiagnosisPage, apiAiDiagnosisDetail, apiAiDiagnosisAudit } from '@/apis/ai-diagnosis';
 
 const currentTime = ref(new Date().toLocaleTimeString('zh-CN', { hour12: false }));
 let timer = null;
@@ -183,6 +332,24 @@ const currentReviewingData = ref(null);
 const doctorConclusion = ref('');
 const ecgChartRef = ref(null);
 let ecgChart = null;
+
+const detailVisible = ref(false);
+const detailData = ref(null);
+
+const openDetailDialog = async (row) => {
+    try {
+        const res = await apiAiDiagnosisDetail(row.diagnosisId);
+        if (res.code === 200 || res.code === 0) {
+            detailData.value = res.data;
+            detailVisible.value = true;
+        } else {
+            ElMessage.error(res.msg || res.message || '获取详情失败');
+        }
+    } catch (error) {
+        console.error('获取详情失败:', error);
+        ElMessage.error('获取详情失败');
+    }
+};
 
 const openReviewDialog = (row) => {
     currentReviewingData.value = row;
@@ -212,7 +379,7 @@ const initEcgChart = () => {
             v = -Math.random() * 2 - 1; // S 波
         } else {
             v = Math.sin(i / 10) * 0.5 + (Math.random() * 0.2 - 0.1); // 基线漂移与微噪音
-            if (currentReviewingData.value?.anomalyCount > 0 && Math.random() < 0.05) {
+            if (currentReviewingData.value?.abnormalCount > 0 && Math.random() < 0.05) {
                 v += 1.5; // 模拟些许异常抖动
             }
         }
@@ -267,21 +434,56 @@ const initEcgChart = () => {
     ecgChart.setOption(option);
 };
 
-const submitReview = () => {
+const submitReview = async () => {
     if (!doctorConclusion.value) {
         ElMessage.warning('请输入复核意见');
         return;
     }
-    ElMessage.success(`复核完成，诊断意见：${doctorConclusion.value}`);
-    reviewDialogVisible.value = false;
+
+    try {
+        const res = await apiAiDiagnosisAudit({
+            diagnosisId: currentReviewingData.value.diagnosisId,
+            doctorConclusion: doctorConclusion.value
+        });
+
+        if (res.code === 200 || res.code === 0) {
+            ElMessage.success(`复核完成`);
+            reviewDialogVisible.value = false;
+            // 刷新列表和概览数据
+            fetchOverview();
+            fetchRecentAnomalies();
+            if (allRecordsVisible.value) {
+                loadAllRecords();
+            }
+        } else {
+            ElMessage.error(res.msg || res.message || '复核失败');
+        }
+    } catch (error) {
+        console.error('复核异常:', error);
+        ElMessage.error('复核发生异常');
+    }
 };
 
 const statistics = ref([
-    { title: '今日AI分析总量', value: '4,285', unit: '份', icon: DataLine, color: '#409EFF', bgColor: '#ecf5ff', trend: 12.5 },
-    { title: '高危预警拦截', value: '186', unit: '次', icon: Warning, color: '#F56C6C', bgColor: '#fef0f0', trend: 3.2 },
-    { title: '异常检出率', value: '14.2', unit: '%', icon: TrendCharts, color: '#E6A23C', bgColor: '#fdf6ec', trend: -1.5 },
-    { title: 'AI模型准确度', value: '98.5', unit: '%', icon: Coordinate, color: '#67C23A', bgColor: '#f0f9eb', trend: 0.8 },
+    { title: 'AI分析总量', value: '0', unit: '份', icon: DataLine, color: '#409EFF', bgColor: '#ecf5ff', prop: 'totalCount' },
+    { title: '待审核数量', value: '0', unit: '份', icon: Warning, color: '#F56C6C', bgColor: '#fef0f0', prop: 'pendingAuditCount' },
+    { title: '已审核数量', value: '0', unit: '份', icon: TrendCharts, color: '#E6A23C', bgColor: '#fdf6ec', prop: 'auditedCount' },
+    { title: '平均置信度', value: '0', unit: '%', icon: Coordinate, color: '#67C23A', bgColor: '#f0f9eb', prop: 'avgConfidence' },
 ]);
+
+const fetchOverview = async () => {
+    try {
+        const res = await apiAiDiagnosisOverview({});
+        const data = res.data || {};
+        statistics.value.forEach(stat => {
+            if (data[stat.prop] !== undefined) {
+                stat.value = data[stat.prop];
+            }
+        });
+    } catch (error) {
+        console.error('获取AI诊断概览失败', error);
+    }
+};
 
 const trendPeriod = ref('30天');
 const trendChartRef = ref(null);
@@ -289,15 +491,72 @@ const distributionChartRef = ref(null);
 let trendChart = null;
 let distChart = null;
 
-const recentAnomalies = ref([
-    { diagnosisId: 'D20240418001', ecgId: 'E10002341', patientInfo: '李** / 男 / 62岁', hospitalNo: '281903', department: '心血管内科', aiVersion: 'v3.2.1', diagnosisConclusion: '急性前壁心肌梗死, 频发性房早', anomalyCount: 2, confidence: 98, diagnosisTime: '2024-04-18 10:42:15' },
-    { diagnosisId: 'D20240418002', ecgId: 'E10002342', patientInfo: '王** / 女 / 55岁', hospitalNo: '302111', department: '急诊科', aiVersion: 'v3.2.1', diagnosisConclusion: '阵发性室性心动过速', anomalyCount: 1, confidence: 95, diagnosisTime: '2024-04-18 10:38:02' },
-    { diagnosisId: 'D20240418003', ecgId: 'E10002343', patientInfo: '张** / 男 / 45岁', hospitalNo: '294821', department: '神经内科', aiVersion: 'v3.2.1', diagnosisConclusion: '严重心动过缓 (<40bpm)', anomalyCount: 1, confidence: 91, diagnosisTime: '2024-04-18 10:35:11' },
-    { diagnosisId: 'D20240418004', ecgId: 'E10002344', patientInfo: '赵** / 女 / 71岁', hospitalNo: '183922', department: '老年病科', aiVersion: 'v3.2.1', diagnosisConclusion: '心房颤动伴长RR间期, ST-T改变', anomalyCount: 2, confidence: 88, diagnosisTime: '2024-04-18 10:20:45' },
-    { diagnosisId: 'D20240418005', ecgId: 'E10002345', patientInfo: '孙** / 男 / 48岁', hospitalNo: '302195', department: '体检中心', aiVersion: 'v3.2.1', diagnosisConclusion: '正常心电图', anomalyCount: 0, confidence: 99, diagnosisTime: '2024-04-18 10:15:30' }
-]);
+const recentAnomalies = ref([]);
 
+const fetchRecentAnomalies = async () => {
+    try {
+        const res = await apiAiDiagnosisPage({ pageNum: 1, pageSize: 5 });
+        const data = res.data || res;
+        recentAnomalies.value = data.list || data.records || data.rows || [];
+    } catch (error) {
+        console.error('获取最新诊断记录失败', error);
+    }
+};
 
+// 查看全部逻辑
+const allRecordsVisible = ref(false);
+const allRecordsData = ref([]);
+const allRecordsTotal = ref(0);
+const allRecordsLoading = ref(false);
+
+const allRecordsParams = reactive({
+    ecgNo: '',
+    patientName: '',
+    status: '',
+    pageNum: 1,
+    pageSize: 10
+});
+
+const loadAllRecords = async () => {
+    allRecordsLoading.value = true;
+    try {
+        const res = await apiAiDiagnosisPage(allRecordsParams);
+        const data = res.data || res;
+        allRecordsData.value = data.list || data.records || data.rows || [];
+        allRecordsTotal.value = data.total || 0;
+    } catch (error) {
+        console.error('获取所有诊断记录失败', error);
+    } finally {
+        allRecordsLoading.value = false;
+    }
+};
+
+const openAllRecordsDialog = () => {
+    allRecordsVisible.value = true;
+    Object.assign(allRecordsParams, {
+        ecgNo: '',
+        patientName: '',
+        status: '',
+        pageNum: 1,
+        pageSize: 10
+    });
+    loadAllRecords();
+};
+
+const handleSearchAll = () => {
+    allRecordsParams.pageNum = 1;
+    loadAllRecords();
+};
+
+const handleSizeChange = (val) => {
+    allRecordsParams.pageSize = val;
+    loadAllRecords();
+};
+
+const handleCurrentChange = (val) => {
+    allRecordsParams.pageNum = val;
+    loadAllRecords();
+};
 
 const getConfidenceColor = (percentage) => {
     if (percentage >= 95) return '#10b981'; // 绿
@@ -410,6 +669,8 @@ const resizeWindow = () => {
 };
 
 onMounted(() => {
+    fetchOverview();
+    fetchRecentAnomalies();
     timer = setInterval(() => {
         currentTime.value = new Date().toLocaleTimeString('zh-CN', { hour12: false });
     }, 1000);

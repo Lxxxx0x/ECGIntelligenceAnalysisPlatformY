@@ -23,8 +23,10 @@
                 </el-form-item>
                 <el-form-item label="设备状态：">
                     <el-select v-model="searchQuery.deviceStatus" placeholder="全部状态" clearable style="width: 150px">
-                        <el-option label="正常" value="正常"></el-option>
-                        <el-option label="异常" value="异常"></el-option>
+                        <el-option label="正常" :value="1"></el-option>
+                        <el-option label="维修" :value="2"></el-option>
+                        <el-option label="停用" :value="3"></el-option>
+                        <el-option label="离线" :value="4"></el-option>
                     </el-select>
                 </el-form-item>
                 <el-form-item label="测试时间：">
@@ -68,8 +70,8 @@
                 <el-table-column prop="testUserName" label="测试人员" width="120"></el-table-column>
                 <el-table-column prop="deviceStatus" label="设备状态" width="100">
                     <template #default="{ row }">
-                        <el-tag :type="row.deviceStatus === '正常' ? 'success' : 'danger'" plain size="small">
-                            {{ row.deviceStatus }}
+                        <el-tag :type="getDeviceStatusType(row.deviceStatus)" plain size="small">
+                            {{ getDeviceStatusText(row.deviceStatus) }}
                         </el-tag>
                     </template>
                 </el-table-column>
@@ -108,8 +110,8 @@
                 <el-descriptions-item label="测试类型">{{ currentDetail.testType }}</el-descriptions-item>
                 <el-descriptions-item label="测试时间">{{ currentDetail.testTime }}</el-descriptions-item>
                 <el-descriptions-item label="设备状态">
-                    <el-tag :type="currentDetail.deviceStatus === '正常' ? 'success' : 'danger'" size="small">
-                        {{ currentDetail.deviceStatus }}
+                    <el-tag :type="getDeviceStatusType(currentDetail.deviceStatus)" size="small">
+                        {{ getDeviceStatusText(currentDetail.deviceStatus) }}
                     </el-tag>
                 </el-descriptions-item>
                 <el-descriptions-item label="测试结果">
@@ -150,6 +152,11 @@
         <!-- 新增/编辑对话框 -->
         <el-dialog v-model="formVisible" :title="isEdit ? '编辑质控' : '新增质控'" width="600px">
             <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
+                <el-form-item label="所属科室" prop="deptId">
+                    <el-tree-select v-model="formData.deptId" :data="deptTreeData"
+                        :props="{ label: 'deptName', value: 'deptId', children: 'children' }" placeholder="请选择所属科室"
+                        check-strictly clearable style="width: 100%" />
+                </el-form-item>
                 <template v-if="!isEdit">
                     <el-form-item label="选择设备" prop="deviceId">
                         <el-select v-model="formData.deviceId" placeholder="请选择设备" style="width: 100%;">
@@ -174,8 +181,10 @@
 
                 <el-form-item label="设备状态" prop="deviceStatus">
                     <el-radio-group v-model="formData.deviceStatus">
-                        <el-radio label="正常">正常</el-radio>
-                        <el-radio label="异常">异常</el-radio>
+                        <el-radio :label="1">正常</el-radio>
+                        <el-radio :label="2">维修</el-radio>
+                        <el-radio :label="3">停用</el-radio>
+                        <el-radio :label="4">离线</el-radio>
                     </el-radio-group>
                 </el-form-item>
                 <el-form-item label="测试结果" prop="testResult">
@@ -207,15 +216,22 @@ import {
     apiQualityControlDicts,
     apiQualityControlAdd,
     apiQualityControlEdit,
-    apiQualityControlDetail
+    apiQualityControlDetail,
+    apiQualityControlDeviceDicts
 } from '@/apis/quality'
+
+import { apiDepartmentTree } from '@/apis/system/department'
 
 // 字典数据
 const dicts = reactive({
     deviceOptions: [],
     testStatusOptions: [],
-    testTypeOptions: []
+    testTypeOptions: [],
+    deviceTypeOptions: [],
+    wardOptions: []
 })
+
+const deptTreeData = ref([])
 
 // 搜索条件
 const searchQuery = reactive({
@@ -232,6 +248,26 @@ const loading = ref(false)
 const pageNum = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+
+const getDeviceStatusText = (status) => {
+    const map = {
+        1: '正常',
+        2: '维修',
+        3: '停用',
+        4: '离线',
+        '正常': '正常',
+        '异常': '异常'
+    }
+    return map[status] || status || '-'
+}
+
+const getDeviceStatusType = (status) => {
+    const text = getDeviceStatusText(status)
+    if (text === '正常') return 'success'
+    if (text === '维修' || text === '异常') return 'danger'
+    if (text === '停用' || text === '离线') return 'info'
+    return 'info'
+}
 
 // 查询方法
 const handleSearch = () => {
@@ -253,15 +289,32 @@ const handleReset = () => {
 // 获取字典数据
 const fetchDicts = async () => {
     try {
-        const res = await apiQualityControlDicts()
+        const [res, deviceRes, treeRes] = await Promise.all([
+            apiQualityControlDicts(),
+            apiQualityControlDeviceDicts(),
+            apiDepartmentTree()
+        ])
+
         const responseData = res.data || res
-        // 确保深层 data 被解析
         const data = responseData.data || responseData
         if (data) {
-            dicts.deviceOptions = data.deviceOptions || []
             dicts.testStatusOptions = data.testStatusOptions || []
             dicts.testTypeOptions = data.testTypeOptions || []
+            dicts.deviceOptions = data.deviceOptions || []
         }
+
+        const deviceData = deviceRes.data || deviceRes
+        if (deviceData.data) {
+            // dicts.deviceOptions = deviceData.data.deviceOptions || [] 
+            dicts.deviceTypeOptions = deviceData.data.deviceTypeOptions || []
+            dicts.wardOptions = deviceData.data.wardOptions || []
+        } else {
+            // dicts.deviceOptions = deviceData.deviceOptions || []
+            dicts.deviceTypeOptions = deviceData.deviceTypeOptions || []
+            dicts.wardOptions = deviceData.wardOptions || []
+        }
+
+        deptTreeData.value = treeRes.data || []
     } catch (error) {
         console.error('获取字典数据失败', error)
     }
@@ -325,16 +378,18 @@ const formRef = ref()
 
 const formData = reactive({
     qcId: null,
+    deptId: '',
     deviceId: '',
     testType: '',
     testUserId: '',
     testTime: '',
-    deviceStatus: '正常',
+    deviceStatus: 1,
     testResult: '通过',
     remark: ''
 })
 
 const formRules = {
+    deptId: [{ required: true, message: '请选择所属科室', trigger: 'change' }],
     deviceId: [{ required: true, message: '请选择设备', trigger: 'change' }],
     testType: [{ required: true, message: '请选择测试类型', trigger: 'change' }],
     testUserId: [{ required: true, message: '请输入测试工号', trigger: 'blur' }],
@@ -347,11 +402,12 @@ const handleAdd = () => {
     isEdit.value = false
     Object.assign(formData, {
         qcId: null,
+        deptId: '',
         deviceId: '',
         testType: '',
         testUserId: '',
         testTime: '',
-        deviceStatus: '正常',
+        deviceStatus: 1,
         testResult: '通过',
         remark: ''
     })
@@ -363,6 +419,7 @@ const handleEdit = (row) => {
     isEdit.value = true
     Object.assign(formData, {
         qcId: row.qcId,
+        deptId: row.deptId || '',
         deviceStatus: row.deviceStatus,
         testResult: row.testResult,
         remark: row.remark
@@ -379,6 +436,7 @@ const submitForm = () => {
             if (isEdit.value) {
                 await apiQualityControlEdit({
                     qcId: formData.qcId,
+                    deptId: formData.deptId,
                     testResult: formData.testResult,
                     deviceStatus: formData.deviceStatus,
                     remark: formData.remark
@@ -386,6 +444,7 @@ const submitForm = () => {
                 ElMessage.success('编辑成功')
             } else {
                 await apiQualityControlAdd({
+                    deptId: formData.deptId,
                     deviceId: Number(formData.deviceId),
                     testType: formData.testType,
                     testUserId: Number(formData.testUserId),

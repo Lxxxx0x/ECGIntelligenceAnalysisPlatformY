@@ -38,9 +38,9 @@ export function apiQualityControlEdit(data) {
 // 删除质控
 export function apiQualityControlDelete(qcId) {
   return request({
-    url: '/monitor/quality-control',
+    url: "/monitor/quality-control",
     method: "delete",
-    params: { qcId }
+    params: { qcId },
   });
 }
 
@@ -49,8 +49,14 @@ export function apiQualityControlDetail(qcId) {
   return request({
     url: `/monitor/quality-control/detail`,
     method: "get",
-    params: { qcId }
+    params: { qcId },
   });
 }
 
-
+// 质控设备列表
+export function apiQualityControlDeviceDicts() {
+  return request({
+    url: "/monitor/device/dicts",
+    method: "get",
+  });
+}

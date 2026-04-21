@@ -44,3 +44,12 @@ export function apiDepartmentDetail(deptId) {
     params: { deptId },
   });
 }
+
+// 科室树
+export function apiDepartmentTree(deptId) {
+  return request({
+    url: `/system/department/tree`,
+    method: "get",
+    params: { deptId },
+  });
+}

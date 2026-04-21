@@ -1,7 +1,6 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { Aim, Timer, TrendCharts, Bell, Plus } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ref, onMounted, onUnmounted,   } from 'vue'
+import { Aim, Timer, TrendCharts, Bell, } from '@element-plus/icons-vue'
 
 // Top Stats Data
 const stats = ref([
@@ -32,19 +31,7 @@ const deptStats = ref([
     { name: '其他', value: 221, percentage: 40 },
 ])
 
-const filterLevel = ref('全部')
 
-const filteredPatients = computed(() => {
-    if (filterLevel.value === '全部') return patients.value
-    if (filterLevel.value === '高危') return patients.value.filter(p => p.hr > 120 || p.hr < 45)
-    if (filterLevel.value === '中危') return patients.value.filter(p => (p.hr > 100 && p.hr <= 120) || (p.hr >= 45 && p.hr < 55))
-    if (filterLevel.value === '正常') return patients.value.filter(p => p.hr >= 55 && p.hr <= 100)
-    return patients.value
-})
-
-const handleAddFocus = (patient) => {
-    ElMessage.success(`已将 ${patient.name} 加入重点监护`)
-}
 
 // Simulate real-time updates
 let intervalId;
