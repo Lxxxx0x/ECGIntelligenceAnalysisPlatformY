@@ -1,47 +1,47 @@
-import axios from 'axios'
-import { ElMessage } from 'element-plus'
+import axios from "axios";
+import { ElMessage } from "element-plus";
 
 const service = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: import.meta.env.VITE_API_URL || "/api",
   timeout: 10000,
-})
+});
 
 service.interceptors.request.use(
   (config) => {
     // 所需请求头功能位
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem("token");
     if (token) {
-      config.headers['Authorization'] = token
-      config.headers['token'] = token
+      config.headers["Authorization"] = token;
+      config.headers["token"] = token;
     }
-    return config
+    return config;
   },
   (error) => {
-    return Promise.reject(error)
+    return Promise.reject(error);
   },
-)
+);
 
 service.interceptors.response.use(
   (response) => {
-    const res = response.data
+    const res = response.data;
     if (res.code === 401) {
-      const message = res.message || '未认证或登录已失效'
-      ElMessage.error(message)
-      return Promise.reject(new Error(message))
+      const message = res.message || "未认证或登录已失效";
+      ElMessage.error(message);
+      return Promise.reject(new Error(message));
     }
     if (res.success === false) {
-      const message = res.message || res.error || 'Error'
-      ElMessage.error(message)
-      return Promise.reject(new Error(message))
+      const message = res.message || res.error || "Error";
+      ElMessage.error(message);
+      return Promise.reject(new Error(message));
     } else {
-      return res
+      return res;
     }
   },
   (error) => {
-    console.error('err' + error)
-    ElMessage.error(error.message)
-    return Promise.reject(error)
+    console.error("err" + error);
+    ElMessage.error(error.message);
+    return Promise.reject(error);
   },
-)
+);
 
-export default service
+export default service;
