@@ -73,7 +73,7 @@ export function apiWarningDetail(alertId) {
 // 纳入接口
 export function apiIncludeWarning(warningId) {
   return request({
-    url: "/api/analysis/dashboard/warnings/include",
+    url: "/analysis/dashboard/warnings/include",
     method: "post",
     data: {
       warningId,

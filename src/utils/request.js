@@ -24,6 +24,11 @@ service.interceptors.request.use(
 service.interceptors.response.use(
   (response) => {
     const res = response.data
+    if (res.code === 401) {
+      const message = res.message || '未认证或登录已失效'
+      ElMessage.error(message)
+      return Promise.reject(new Error(message))
+    }
     if (res.success === false) {
       const message = res.message || res.error || 'Error'
       ElMessage.error(message)
