@@ -12,4 +12,10 @@ services:
     environment:
       # 在这里配置你的后端 API 地址，对应 Nginx 模板中的变量
       - API_URL=http://112.124.70.235:8080
+      - TZ=Asia/Shanghai
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: unless-stopped

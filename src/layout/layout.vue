@@ -6,10 +6,6 @@ import {
     House,
     Document,
     DataLine,
-    CircleCheck,
-    Bell,
-    Search,
-    Tools,
     Setting,
     Collection
 } from "@element-plus/icons-vue";
@@ -18,17 +14,18 @@ const route = useRoute();
 const activeMenu = ref(route.path || "/workbench");
 
 const routePaths = {
-    "/workbench": ["数据分析", "数据分析"],
-    "/ecg-data": ["心电数据管理"],
-    "/ai-diagnosis": ["AI诊断中心"],
-    "/report": ["诊断报告管理"],
-    "/patient": ["数据分析", "患者管理"],
-    "/warning": ["预警监控"],
-    "/realtime": ["监护管理", "实时监护"],
-    "/focus-monitor": ["监护管理", "重点监护"],
-    "/device": ["设备管理", "设备管理"],
-    "/quality": ["设备管理", "质控管理"],
-    "/research": ["科研数据管理"],
+    "/workbench": ["业务中心", "患者推送"],
+    "/patient": ["业务中心", "患者管理"],
+    "/research": ["科研中心"],
+    "/ai-diagnosis": ["诊断中心", "AI诊断中心"],
+    "/report": ["诊断中心", "诊断报告管理"],
+    "/ecg-data": ["数据中心", "心电数据管理"],
+    "/realtime": ["数据中心", "实时监护管理"],
+    "/focus-monitor": ["数据中心", "重点监护管理"],
+    "/device": ["数据中心", "设备管理"],
+    "/quality": ["数据中心", "质控管理"],
+    "/out-ecg-data": ["院外管理中心", "心电数据管理"],
+    "/out-realtime": ["院外管理中心", "实时监护管理"],
     "/system/departments": ["系统管理", "科室管理"],
     "/system/users": ["系统管理", "用户管理"],
     "/system/roles": ["系统管理", "角色与权限管理"]
@@ -66,68 +63,67 @@ onMounted(() => {
                 <span class="logo-text">心电图情报分析平台<br /><small>ECG Intelligence Analysis Platform</small></span>
             </div>
             <el-menu :default-active="activeMenu" class="sidebar-menu" :collapse="false" router>
-                <el-sub-menu index="workbench-group">
+                <el-menu-item index="/dashboard">
+                    <el-icon>
+                        <DataBoard />
+                    </el-icon>
+                    <template #title>信息集成大屏</template>
+                </el-menu-item>
+
+                <el-sub-menu index="business-center">
                     <template #title>
                         <el-icon>
                             <House />
                         </el-icon>
-                        <span>数据分析</span>
+                        <span>业务中心</span>
                     </template>
-                    <el-menu-item index="/workbench">数据分析</el-menu-item>
+                    <el-menu-item index="/workbench">患者推送</el-menu-item>
                     <el-menu-item index="/patient">患者管理</el-menu-item>
                 </el-sub-menu>
-                <el-menu-item index="/ecg-data">
-                    <el-icon>
-                        <Document />
-                    </el-icon>
-                    <template #title>心电数据管理</template>
-                </el-menu-item>
-                <el-menu-item index="/ai-diagnosis">
-                    <el-icon>
-                        <DataLine />
-                    </el-icon>
-                    <template #title>AI诊断中心</template>
-                </el-menu-item>
-                <el-menu-item index="/report">
-                    <el-icon>
-                        <CircleCheck />
-                    </el-icon>
-                    <template #title>诊断报告管理</template>
-                </el-menu-item>
-                <el-menu-item index="/warning">
-                    <el-icon>
-                        <Bell />
-                    </el-icon>
-                    <template #title>预警监控</template>
-                </el-menu-item>
-                <el-sub-menu index="monitor-group">
+
+                <el-sub-menu index="data-center">
                     <template #title>
                         <el-icon>
-                            <Search />
+                            <DataLine />
                         </el-icon>
-                        <span>监护管理</span>
+                        <span>数据中心</span>
                     </template>
-                    <el-menu-item index="/realtime">实时监护</el-menu-item>
-                    <el-menu-item index="/focus-monitor">重点监护</el-menu-item>
-                </el-sub-menu>
-                <el-sub-menu index="device-group">
-                    <template #title>
-                        <el-icon>
-                            <Tools />
-                        </el-icon>
-                        <span>设备管理</span>
-                    </template>
+                    <el-menu-item index="/ecg-data">心电数据管理</el-menu-item>
+                    <el-menu-item index="/realtime">实时监护管理</el-menu-item>
+                    <el-menu-item index="/focus-monitor">重点监护管理</el-menu-item>
                     <el-menu-item index="/device">设备管理</el-menu-item>
-                    <el-menu-item index="/quality">
-                        <template #title>质控管理</template>
-                    </el-menu-item>
+                    <el-menu-item index="/quality">质控管理</el-menu-item>
                 </el-sub-menu>
+
+                <el-sub-menu index="out-hospital-center">
+                    <template #title>
+                        <el-icon>
+                            <Document />
+                        </el-icon>
+                        <span>院外管理中心</span>
+                    </template>
+                    <el-menu-item index="/out-ecg-data">心电数据管理</el-menu-item>
+                    <el-menu-item index="/out-realtime">实时监护管理</el-menu-item>
+                </el-sub-menu>
+
+                <el-sub-menu index="diagnosis-center">
+                    <template #title>
+                        <el-icon>
+                            <FirstAidKit />
+                        </el-icon>
+                        <span>诊断中心</span>
+                    </template>
+                    <el-menu-item index="/ai-diagnosis">AI诊断中心</el-menu-item>
+                    <el-menu-item index="/report">诊断报告管理</el-menu-item>
+                </el-sub-menu>
+
                 <el-menu-item index="/research">
                     <el-icon>
                         <Collection />
                     </el-icon>
-                    <template #title>科研数据管理</template>
+                    <template #title>科研中心</template>
                 </el-menu-item>
+
                 <el-sub-menu index="/system">
                     <template #title>
                         <el-icon>

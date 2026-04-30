@@ -7,8 +7,13 @@ const router = createRouter({
     {
       path: "/",
       component: Layout,
-      redirect: "/workbench",
+      redirect: "/dashboard",
       children: [
+        {
+          path: "dashboard",
+          name: "dashboard",
+          component: () => import("@/views/dashboard/dashboard.vue"),
+        },
         {
           path: "workbench",
           name: "workbench",
@@ -58,6 +63,16 @@ const router = createRouter({
           path: "quality",
           name: "quality",
           component: () => import("@/views/quality/quality.vue"),
+        },
+        {
+          path: "out-ecg-data",
+          name: "out-ecg-data",
+          component: () => import("@/views/ecg-data/ecg-data.vue"),
+        },
+        {
+          path: "out-realtime",
+          name: "out-realtime",
+          component: () => import("@/views/realtime/realtime.vue"),
         },
         {
           path: "research",

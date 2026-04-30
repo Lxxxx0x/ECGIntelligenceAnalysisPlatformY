@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Search } from '@element-plus/icons-vue'
+import { Search, Edit } from '@element-plus/icons-vue'
 import { apiPatientsList, apiPatientsDetail } from '@/apis/patients'
 import { apigetSearchDicts, apiSearchDicts } from '@/apis/search'
 
@@ -105,6 +105,47 @@ const handleCurrentChange = (val) => {
 const dialogVisible = ref(false)
 const detailLoading = ref(false)
 const patientDetail = ref({})
+
+const editDialogVisible = ref(false)
+const editLoading = ref(false)
+const editFormRef = ref(null)
+const editForm = ref({})
+
+const resetEditForm = (row = {}) => {
+    editForm.value = {
+        patientId: row.patientId,
+        patientName: row.patientName || '',
+        genderText: row.genderText || '',
+        age: row.age || '',
+        inpatientNo: row.inpatientNo || '',
+        wardName: row.wardName || '',
+        bedNo: row.bedNo || '',
+        primaryDiagnosis: row.primaryDiagnosis || '',
+        riskLevelText: row.riskLevelText || '',
+        patientStatusText: row.patientStatusText || '',
+        deviceId: row.deviceId || '',
+        admissionTime: row.admissionTime || '',
+        dischargeTime: row.dischargeTime || ''
+    }
+}
+
+const handleEdit = (row) => {
+    resetEditForm(row)
+    editDialogVisible.value = true
+}
+
+const saveEdit = async () => {
+    editLoading.value = true
+    try {
+        const target = tableData.value.find(item => item.patientId === editForm.value.patientId)
+        if (target) {
+            Object.assign(target, editForm.value)
+        }
+        editDialogVisible.value = false
+    } finally {
+        editLoading.value = false
+    }
+}
 
 const handleDetail = async (row) => {
     dialogVisible.value = true
@@ -233,8 +274,14 @@ const getStatusClass = (status) => {
                             {{ scope.row.latestEcgTime ? scope.row.latestEcgTime.replace('T', ' ') : '' }}
                         </template>
                     </el-table-column>
-                    <el-table-column label="操作" width="80" align="center" fixed="right">
+                    <el-table-column label="操作" width="120" align="center" fixed="right">
                         <template #default="scope">
+                            <el-button link type="primary" size="small" @click="handleEdit(scope.row)">
+                                <el-icon>
+                                    <Edit />
+                                </el-icon>
+                                修改
+                            </el-button>
                             <el-button link type="primary" size="small" @click="handleDetail(scope.row)">详情</el-button>
                         </template>
                     </el-table-column>
@@ -254,7 +301,7 @@ const getStatusClass = (status) => {
                         <el-descriptions-item label="患者姓名">{{ patientDetail.patientName || '-' }}</el-descriptions-item>
                         <el-descriptions-item label="性别">{{ patientDetail.genderText || '-' }}</el-descriptions-item>
                         <el-descriptions-item label="年龄">{{ patientDetail.age ? patientDetail.age + '岁' : '-'
-                            }}</el-descriptions-item>
+                        }}</el-descriptions-item>
                         <el-descriptions-item label="出生日期">{{ patientDetail.birthDate ?
                             patientDetail.birthDate.substring(0, 10) :
                             '-' }}</el-descriptions-item>
@@ -264,9 +311,9 @@ const getStatusClass = (status) => {
                         <el-descriptions-item label="病区">{{ patientDetail.wardName || '-' }}</el-descriptions-item>
                         <el-descriptions-item label="床号">{{ patientDetail.bedNo || '-' }}</el-descriptions-item>
                         <el-descriptions-item label="状态">{{ patientDetail.patientStatusText || '-'
-                            }}</el-descriptions-item>
+                        }}</el-descriptions-item>
                         <el-descriptions-item label="风险等级">{{ patientDetail.riskLevelText || '-'
-                            }}</el-descriptions-item>
+                        }}</el-descriptions-item>
                         <el-descriptions-item label="设备号">{{ patientDetail.deviceId || '-' }}</el-descriptions-item>
                         <el-descriptions-item label="入院时间">{{ patientDetail.admissionTime ?
                             patientDetail.admissionTime.replace('T',
@@ -278,12 +325,102 @@ const getStatusClass = (status) => {
                         <el-descriptions-item label="最近心电时间">{{ patientDetail.latestEcgTime ?
                             patientDetail.latestEcgTime.replace('T', ' ') : '-' }}</el-descriptions-item>
                         <el-descriptions-item label="主要诊断" :span="2">{{ patientDetail.primaryDiagnosis || '-'
-                            }}</el-descriptions-item>
+                        }}</el-descriptions-item>
                     </el-descriptions>
                 </div>
                 <template #footer>
                     <span class="dialog-footer">
                         <el-button @click="dialogVisible = false">关闭</el-button>
+                    </span>
+                </template>
+            </el-dialog>
+
+            <!-- Edit Dialog -->
+            <el-dialog v-model="editDialogVisible" title="修改患者信息" width="760px" destroy-on-close class="edit-dialog">
+                <div class="dialog-tip">以下信息为前端编辑样式预览，暂未对接后端保存接口。</div>
+                <el-form ref="editFormRef" :model="editForm" label-width="96px" class="edit-form">
+                    <el-row :gutter="16">
+                        <el-col :span="12">
+                            <el-form-item label="患者姓名">
+                                <el-input v-model="editForm.patientName" placeholder="请输入患者姓名" />
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                            <el-form-item label="性别">
+                                <el-select v-model="editForm.genderText" placeholder="请选择性别" style="width: 100%;">
+                                    <el-option label="男" value="男" />
+                                    <el-option label="女" value="女" />
+                                </el-select>
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                            <el-form-item label="年龄">
+                                <el-input-number v-model="editForm.age" :min="0" :max="120" controls-position="right"
+                                    style="width: 100%;" />
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                            <el-form-item label="住院号">
+                                <el-input v-model="editForm.inpatientNo" placeholder="请输入住院号" />
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                            <el-form-item label="病区">
+                                <el-input v-model="editForm.wardName" placeholder="请输入病区名称" />
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                            <el-form-item label="床号">
+                                <el-input v-model="editForm.bedNo" placeholder="请输入床号" />
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                            <el-form-item label="风险等级">
+                                <el-select v-model="editForm.riskLevelText" placeholder="请选择风险等级" style="width: 100%;">
+                                    <el-option label="低危" value="低危" />
+                                    <el-option label="中危" value="中危" />
+                                    <el-option label="中高危" value="中高危" />
+                                    <el-option label="高危" value="高危" />
+                                </el-select>
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                            <el-form-item label="患者状态">
+                                <el-select v-model="editForm.patientStatusText" placeholder="请选择患者状态"
+                                    style="width: 100%;">
+                                    <el-option label="住院" value="住院" />
+                                    <el-option label="居家" value="居家" />
+                                    <el-option label="随访" value="随访" />
+                                </el-select>
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                            <el-form-item label="设备号">
+                                <el-input v-model="editForm.deviceId" placeholder="请输入设备号" />
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                            <el-form-item label="入院时间">
+                                <el-input v-model="editForm.admissionTime" placeholder="YYYY-MM-DD HH:mm:ss" />
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                            <el-form-item label="出院时间">
+                                <el-input v-model="editForm.dischargeTime" placeholder="YYYY-MM-DD HH:mm:ss" />
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="24">
+                            <el-form-item label="主要诊断">
+                                <el-input v-model="editForm.primaryDiagnosis" type="textarea" :rows="3"
+                                    placeholder="请输入主要诊断" />
+                            </el-form-item>
+                        </el-col>
+                    </el-row>
+                </el-form>
+                <template #footer>
+                    <span class="dialog-footer">
+                        <el-button @click="editDialogVisible = false">取消</el-button>
+                        <el-button type="primary" :loading="editLoading" @click="saveEdit">保存修改</el-button>
                     </span>
                 </template>
             </el-dialog>
@@ -467,5 +604,27 @@ const getStatusClass = (status) => {
 
 .mr-1 {
     margin-right: 4px;
+}
+
+.edit-dialog {
+    :deep(.el-dialog__body) {
+        padding-top: 12px;
+    }
+}
+
+.dialog-tip {
+    margin-bottom: 16px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #f8fbff;
+    color: #5b7289;
+    border: 1px solid #d9e8ff;
+    font-size: 13px;
+}
+
+.edit-form {
+    :deep(.el-form-item) {
+        margin-bottom: 16px;
+    }
 }
 </style>

@@ -19,7 +19,13 @@ COPY . .
 RUN pnpm build
 
 # 生产阶段 (Production stage)
-FROM nginx:1.25-alpine
+FROM nginx:alpine
+
+# 安装 tzdata 以支持时区设置
+ENV TZ=Asia/Shanghai
+RUN apk add --no-cache tzdata && \
+    cp /usr/share/zoneinfo/${TZ} /etc/localtime && \
+    echo ${TZ} > /etc/timezone
 
 # 设置环境变量，指定默认的后端 API 地址 (在运行时可以被覆盖)
 ENV API_URL=http://112.124.70.235:8080
