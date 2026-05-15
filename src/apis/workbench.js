@@ -37,10 +37,11 @@ export function apiWarningTypeWardTop(params) {
 }
 
 // 近7日预警类型趋势
-export function apiWarningTrend7d() {
+export function apiWarningTrend7d(params) {
   return request({
     url: "/analysis/dashboard/warning-trend-7d",
     method: "get",
+    params,
   });
 }
 
@@ -78,5 +79,14 @@ export function apiIncludeWarning(warningId) {
     data: {
       warningId,
     },
+  });
+}
+
+// 获取符合条件的推送数量
+export function apiEligiblePushCount(params) {
+  return request({
+    url: "/analysis/dashboard/push/eligible-count",
+    method: "get",
+    params,
   });
 }

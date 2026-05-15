@@ -35,9 +35,11 @@ COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
 
 # 复制构建好的静态文件到 Nginx html 目录
 COPY --from=build-stage /app/dist /usr/share/nginx/html
+RUN chmod -R 755 /usr/share/nginx/html && chown -R nobody:nobody /usr/share/nginx/html
 
 # 暴露 80 端口
 EXPOSE 80
 
 # 启动 Nginx
 CMD ["nginx", "-g", "daemon off;"]
+

@@ -1,12 +1,86 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from "vue";
 import * as echarts from "echarts";
-import { apiDashboardCoreMetrics, apiWarningLevelDistribution, apiWarningTypeWardTop, apiWarningTrend7d, apiPendingWarningsPage, apiLatestEcgPage, apiWarningDetail, apiIncludeWarning } from "@/apis/workbench";
+import { apiDashboardCoreMetrics, apiWarningLevelDistribution, apiWarningTypeWardTop, apiWarningTrend7d, apiPendingWarningsPage, apiLatestEcgPage, apiWarningDetail, apiIncludeWarning, apiEligiblePushCount } from "@/apis/workbench";
+import { apigetSearchDicts } from "@/apis/search";
 import { ElMessage } from "element-plus";
+import { Promotion } from "@element-plus/icons-vue";
 
 defineOptions({
     name: "WorkbenchIndex",
 });
+
+const rulesDrawerVisible = ref(false);
+const rulesForm = ref({
+    warningLevels: ['低危', '中危', '高危'],
+    warningTypes: ['ST段抬高异常', '室性心动过速风险', '室性早搏增多', '房颤发作倾向', '短暂心率升高'],
+    wardIds: ['ALL']
+});
+const wardOptions = ref([]);
+const eligiblePatientCount = ref(0);
+
+const fetchEligiblePushCount = async () => {
+    try {
+        const payload = {
+            warningLevels: rulesForm.value.warningLevels.join(','),
+            warningTypes: rulesForm.value.warningTypes.join(','),
+            wardIds: rulesForm.value.wardIds.includes('ALL') ? '' : rulesForm.value.wardIds.join(',')
+        };
+        const res = await apiEligiblePushCount(payload);
+        if (res.code === 0 && res.data) {
+            eligiblePatientCount.value = res.data.eligibleCount ?? 0;
+        } else {
+            eligiblePatientCount.value = res.eligibleCount ?? 0;
+        }
+    } catch (err) {
+        console.error("加载符合条件的患者数量失败", err);
+    }
+};
+
+watch(rulesForm, () => {
+    if (rulesDrawerVisible.value) {
+        fetchEligiblePushCount();
+    }
+}, { deep: true });
+
+const handleWardChange = (val) => {
+    if (val.length > 0 && val[val.length - 1] === 'ALL') {
+        rulesForm.value.wardIds = ['ALL'];
+    } else if (val.includes('ALL')) {
+        rulesForm.value.wardIds = val.filter(v => v !== 'ALL');
+    }
+};
+
+const loadWards = async () => {
+    try {
+        const res = await apigetSearchDicts();
+        let options = [];
+        if (res.code === 0 && res.data) {
+            options = res.data.wardOptions || [];
+        } else {
+            options = res.data?.wardOptions || res.wardOptions || [];
+        }
+        // 过滤掉接口可能自带的'全部病区'选项，避免重复
+        options = options.filter(item => item.label !== '全部病区');
+        wardOptions.value = [{ label: '全部病区', value: 'ALL' }, ...options];
+    } catch (err) {
+        console.error("加载病区数据失败", err);
+    }
+};
+
+const openRulesDrawer = () => {
+    rulesDrawerVisible.value = true;
+    if (wardOptions.value.length === 0) {
+        loadWards();
+    }
+    fetchEligiblePushCount();
+};
+
+const handleConfirmPush = () => {
+    rulesDrawerVisible.value = false;
+    loadData();
+    // 可以在这里获取 rulesForm.value.wardIds
+};
 
 const getPrimaryColor = () => {
     return document.documentElement.style.getPropertyValue("--el-color-primary") || "#3582e6";
@@ -14,7 +88,7 @@ const getPrimaryColor = () => {
 
 // 顶部时间筛选
 const dateRange = ref([]);
-const activeDateBtn = ref("本月");
+const activeDateBtn = ref("本年");
 const dateBtns = ["今天", "本周", "本月", "本年", "自定义"];
 
 // 计算时间范围
@@ -47,7 +121,10 @@ const getQueryParams = () => {
 
     return {
         startTime: format(startObj, false),
-        endTime: format(endObj, true)
+        endTime: format(endObj, true),
+        warningLevels: rulesForm.value.warningLevels,
+        warningTypes: rulesForm.value.warningTypes,
+        wardIds: rulesForm.value.wardIds.includes('ALL') ? [] : rulesForm.value.wardIds
     };
 };
 
@@ -337,7 +414,7 @@ const loadData = async () => {
             }
         }
 
-        const trendRes = await apiWarningTrend7d();
+        const trendRes = await apiWarningTrend7d(params);
         const trendData = trendRes.data?.data || trendRes.data;
         if (trendData && lineChart) {
             lineChart.setOption({
@@ -431,14 +508,21 @@ onUnmounted(() => {
             </div>
 
             <!-- 核心统栏 -->
-            <div class="stats-wrapper">
-                <div class="stat-item" v-for="(item, i) in stats" :key="i">
-                    <div class="stat-title">{{ item.label }}</div>
-                    <div class="stat-number">
-                        <span class="val">{{ item.value }}</span>
-                        <span class="unit">{{ item.unit }}</span>
+            <div class="stats-wrapper" style="display: flex; justify-content: space-between; align-items: flex-end;">
+                <div style="display: flex; gap: 60px;">
+                    <div class="stat-item" v-for="(item, i) in stats" :key="i">
+                        <div class="stat-title">{{ item.label }}</div>
+                        <div class="stat-number">
+                            <span class="val">{{ item.value }}</span>
+                            <span class="unit">{{ item.unit }}</span>
+                        </div>
                     </div>
                 </div>
+                <el-button type="primary" @click="openRulesDrawer">
+                    <el-icon style="margin-right: 4px;">
+                        <Promotion />
+                    </el-icon>推送规则
+                </el-button>
             </div>
         </div>
 
@@ -698,11 +782,11 @@ onUnmounted(() => {
                 <el-descriptions-item label="PR间期">{{ currentDetail.prInterval }}</el-descriptions-item>
                 <el-descriptions-item label="QRS时限">{{ currentDetail.qrsDuration }}</el-descriptions-item>
                 <el-descriptions-item label="QT/QTc间期">{{ currentDetail.qtInterval }} / {{ currentDetail.qtcInterval
-                    }}</el-descriptions-item>
+                }}</el-descriptions-item>
 
                 <el-descriptions-item label="异常数量/级别">{{ currentDetail.abnormalCount }} / {{
                     currentDetail.abnormalLevelText
-                    }}</el-descriptions-item>
+                }}</el-descriptions-item>
                 <el-descriptions-item label="AI分析状态">{{ currentDetail.analysisStatusText }}</el-descriptions-item>
                 <el-descriptions-item label="诊断完成时间" :span="2">{{ currentDetail.diagnosisTime }}</el-descriptions-item>
 
@@ -717,6 +801,56 @@ onUnmounted(() => {
                 </div>
             </template>
         </el-dialog>
+
+        <!-- 推送规则 弹窗 -->
+        <el-drawer v-model="rulesDrawerVisible" title="推送规则" direction="rtl" size="600px">
+            <el-form :model="rulesForm" label-width="100px" label-position="left" style="padding: 0 10px;">
+                <div style="color: #666; font-size: 16px; font-weight: bold; margin-bottom: 20px;">
+                    当前符合条件的患者: {{ eligiblePatientCount }} 人
+                </div>
+
+                <el-form-item required>
+                    <template #label>
+                        <span style="color: red; margin-right: 4px;">*</span>预警级别
+                    </template>
+                    <el-checkbox-group v-model="rulesForm.warningLevels">
+                        <el-checkbox label="低危">低危</el-checkbox>
+                        <el-checkbox label="中危">中危</el-checkbox>
+                        <el-checkbox label="高危">高危</el-checkbox>
+                    </el-checkbox-group>
+                </el-form-item>
+
+                <el-form-item required>
+                    <template #label>
+                        <span style="color: red; margin-right: 4px;">*</span>预警类型
+                    </template>
+                    <el-checkbox-group v-model="rulesForm.warningTypes" style="display: flex; flex-wrap: wrap;">
+                        <el-checkbox label="ST段抬高异常" style="margin-right: 20px; width: 160px;">ST段抬高异常</el-checkbox>
+                        <el-checkbox label="室性心动过速风险" style="margin-right: 20px; width: 160px;">室性心动过速风险</el-checkbox>
+                        <el-checkbox label="室性早搏增多" style="margin-right: 20px; width: 160px;">室性早搏增多</el-checkbox>
+                        <el-checkbox label="房颤发作倾向" style="margin-right: 20px; width: 160px;">房颤发作倾向</el-checkbox>
+                        <el-checkbox label="短暂心率升高" style="margin-right: 20px; width: 160px;">短暂心率升高</el-checkbox>
+                    </el-checkbox-group>
+                </el-form-item>
+
+                <el-form-item required>
+                    <template #label>
+                        <span style="color: red; margin-right: 4px;">*</span>病区范围
+                    </template>
+                    <el-select v-model="rulesForm.wardIds" multiple collapse-tags collapse-tags-tooltip clearable
+                        placeholder="请选择病区" style="width: 320px;" @change="handleWardChange">
+                        <el-option v-for="item in wardOptions" :key="item.value" :label="item.label" :value="item.value"
+                            :disabled="rulesForm.wardIds.includes('ALL') && item.value !== 'ALL'" />
+                    </el-select>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <div style="display: flex; justify-content: flex-end; padding-top: 20px;">
+                    <el-button @click="rulesDrawerVisible = false">取消</el-button>
+                    <el-button type="primary" @click="handleConfirmPush">确定推送</el-button>
+                </div>
+            </template>
+        </el-drawer>
     </div>
 </template>
 
