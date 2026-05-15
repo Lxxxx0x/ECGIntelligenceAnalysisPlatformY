@@ -293,7 +293,7 @@ const initMapChart = async () => {
     charts.push(chart)
 
     try {
-        const res = await fetch('/china.json')
+        const res = await fetch(`${import.meta.env.BASE_URL}china.json`)
         const geoJson = await res.json()
         echarts.registerMap('china', geoJson)
 
